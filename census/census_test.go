@@ -3,10 +3,12 @@ package census
 import (
 	"encoding/binary"
 	"math"
+	"math/big"
 	"testing"
 
 	qt "github.com/frankban/quicktest"
 	"github.com/iden3/go-iden3-crypto/babyjub"
+	"github.com/vocdoni/arbo"
 	"go.vocdoni.io/dvote/db"
 	"go.vocdoni.io/dvote/db/pebbledb"
 )
@@ -126,5 +128,46 @@ func TestAddPublicKeys(t *testing.T) {
 		c.Assert(err, qt.IsNil)
 		index := binary.LittleEndian.Uint64(indexBytes)
 		c.Assert(index, qt.Equals, uint64(i))
+	}
+}
+
+func TestGetProofAndCheckMerkleProof(t *testing.T) {
+	c := qt.New(t)
+	census := newTestCensus(c)
+
+	nKeys := 100
+	// generate the publicKeys
+	var pks []babyjub.PublicKey
+	for i := 0; i < nKeys; i++ {
+		sk := babyjub.NewRandPrivKey()
+		pk := sk.Public()
+		pks = append(pks, *pk)
+	}
+
+	invalids, err := census.AddPublicKeys(pks)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(invalids), qt.Equals, 0)
+
+	census.Editable = false
+	root, err := census.tree.Root()
+	c.Assert(err, qt.IsNil)
+
+	for i := 0; i < nKeys; i++ {
+		proof, err := census.GetProof(pks[i])
+		c.Assert(err, qt.IsNil)
+
+		// check the proof using the CheckMerkleProof method
+		v, err := CheckProof(root, proof, i, pks[i])
+		c.Assert(err, qt.IsNil)
+		c.Assert(v, qt.IsTrue)
+
+		// check the proof using directly using arbo's method
+		index := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(i))) //nolint:gomnd
+		hashPubK, err := hashPubKBytes(pks[i])
+		c.Assert(err, qt.IsNil)
+
+		v, err = arbo.CheckProof(arbo.HashFunctionPoseidon, index, hashPubK, root, proof)
+		c.Assert(err, qt.IsNil)
+		c.Assert(v, qt.IsTrue)
 	}
 }
