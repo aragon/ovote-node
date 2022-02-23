@@ -1,0 +1,2 @@
+# zkmultisig-node
+Research project.
