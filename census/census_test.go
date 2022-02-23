@@ -1,10 +1,12 @@
 package census
 
 import (
+	"encoding/binary"
 	"math"
 	"testing"
 
 	qt "github.com/frankban/quicktest"
+	"github.com/iden3/go-iden3-crypto/babyjub"
 	"go.vocdoni.io/dvote/db"
 	"go.vocdoni.io/dvote/db/pebbledb"
 )
@@ -30,43 +32,99 @@ func newTestCensus(c *qt.C) *Census {
 	return census
 }
 
-func TestLastUsedIndex(t *testing.T) {
+func TestNextIndex(t *testing.T) {
 	c := qt.New(t)
 	census := newTestCensus(c)
 
-	// expect lastUsedIndex to be 0
+	// expect nextIndex to be 0
 	rTx := census.db.ReadTx()
-	i, err := census.getLastUsedIndex(rTx)
+	i, err := census.getNextIndex(rTx)
 	c.Assert(err, qt.IsNil)
 	c.Assert(i, qt.Equals, uint64(0))
 	rTx.Discard()
 
-	// set the lastUsedIndex to 10
+	// set the nextIndex to 10
 	wTx := census.db.WriteTx()
-	err = census.setLastUsedIndex(wTx, 10)
+	err = census.setNextIndex(wTx, 10)
 	c.Assert(err, qt.IsNil)
 	err = wTx.Commit()
 	c.Assert(err, qt.IsNil)
 	wTx.Discard()
 
-	// expect lastUsedIndex to be 10
+	// expect nextIndex to be 10
 	rTx = census.db.ReadTx()
-	i, err = census.getLastUsedIndex(rTx)
+	i, err = census.getNextIndex(rTx)
 	c.Assert(err, qt.IsNil)
 	c.Assert(i, qt.Equals, uint64(10))
 
 	maxUint64 := uint64(math.MaxUint64)
-	// set the lastUsedIndex to maxUint64
+	// set the nextIndex to maxUint64
 	wTx = census.db.WriteTx()
-	err = census.setLastUsedIndex(wTx, maxUint64)
+	err = census.setNextIndex(wTx, maxUint64)
 	c.Assert(err, qt.IsNil)
 	err = wTx.Commit()
 	c.Assert(err, qt.IsNil)
 	wTx.Discard()
 
-	// expect lastUsedIndex to be maxUint64
+	// expect nextIndex to be maxUint64
 	rTx = census.db.ReadTx()
-	i, err = census.getLastUsedIndex(rTx)
+	i, err = census.getNextIndex(rTx)
 	c.Assert(err, qt.IsNil)
 	c.Assert(i, qt.Equals, maxUint64)
+}
+
+func TestAddPublicKeys(t *testing.T) {
+	c := qt.New(t)
+	census := newTestCensus(c)
+
+	nKeys := 100
+	// generate the publicKeys
+	var pks []babyjub.PublicKey
+	for i := 0; i < nKeys; i++ {
+		sk := babyjub.NewRandPrivKey()
+		pk := sk.Public()
+		pks = append(pks, *pk)
+	}
+
+	invalids, err := census.AddPublicKeys(pks)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(invalids), qt.Equals, 0)
+
+	// expect nextIndex to be 100
+	rTx := census.db.ReadTx()
+	nextIndex, err := census.getNextIndex(rTx)
+	c.Assert(err, qt.IsNil)
+	c.Assert(nextIndex, qt.Equals, uint64(100))
+	rTx.Discard()
+
+	// generate more publicKeys
+	for i := 0; i < nKeys/2; i++ {
+		sk := babyjub.NewRandPrivKey()
+		pk := sk.Public()
+		pks = append(pks, *pk)
+	}
+
+	// add the new publicKeys to the census
+	invalids, err = census.AddPublicKeys(pks[nKeys:])
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(invalids), qt.Equals, 0)
+
+	// expect nextIndex to be 150
+	rTx = census.db.ReadTx()
+	nextIndex, err = census.getNextIndex(rTx)
+	c.Assert(err, qt.IsNil)
+	c.Assert(nextIndex, qt.Equals, uint64(150))
+	rTx.Discard()
+
+	// expect that the compressed publicKeys are stored with their
+	// corresponding index in the db
+	rTx = census.db.ReadTx()
+	defer rTx.Discard()
+	for i := 0; i < len(pks); i++ {
+		pkComp := pks[i].Compress()
+		indexBytes, err := rTx.Get(pkComp[:])
+		c.Assert(err, qt.IsNil)
+		index := binary.LittleEndian.Uint64(indexBytes)
+		c.Assert(index, qt.Equals, uint64(i))
+	}
 }

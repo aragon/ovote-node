@@ -2,12 +2,29 @@ package census
 
 import (
 	"encoding/binary"
+	"errors"
+	"fmt"
+	"math"
+	"math/big"
 
+	"github.com/iden3/go-iden3-crypto/babyjub"
+	"github.com/iden3/go-iden3-crypto/poseidon"
 	"github.com/vocdoni/arbo"
 	"go.vocdoni.io/dvote/db"
 )
 
-var maxLevels int = 32
+var hashLen int = arbo.HashFunctionPoseidon.Len()
+var maxLevels int = 64
+var maxNLeafs uint64 = uint64(math.MaxUint64)
+var maxKeyLen int = int(math.Ceil(float64(maxLevels) / float64(8))) //nolint:gomnd
+
+// ErrCensusNotClosed is used when trying to do some action with the Census
+// that needs the Census to be closed
+var ErrCensusNotClosed = errors.New("Census not closed yet")
+
+// ErrMaxNLeafsReached is used when trying to add a number of new publicKeys
+// which would exceed the maximum number of keys in the census.
+var ErrMaxNLeafsReached = fmt.Errorf("MaxNLeafs (%d) reached", maxNLeafs)
 
 // Census contains the MerkleTree with the PublicKeys
 type Census struct {
@@ -45,10 +62,10 @@ func NewCensus(opts Options) (*Census, error) {
 		db:       opts.DB,
 	}
 
-	// if lastUsedIndex is not set in the db, initialize it to 0
-	_, err = c.getLastUsedIndex(wTx)
+	// if nextIndex is not set in the db, initialize it to 0
+	_, err = c.getNextIndex(wTx)
 	if err != nil {
-		err = c.setLastUsedIndex(wTx, 0)
+		err = c.setNextIndex(wTx, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -62,22 +79,79 @@ func NewCensus(opts Options) (*Census, error) {
 	return c, nil
 }
 
-var dbKeyLastUsedIndex = []byte("lastUsedIndex")
+var dbKeyNextIndex = []byte("nextIndex")
 
-func (c *Census) setLastUsedIndex(wTx db.WriteTx, lastUsedIndex uint64) error {
+func (c *Census) setNextIndex(wTx db.WriteTx, nextIndex uint64) error {
 	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(lastUsedIndex))
-	if err := wTx.Set(dbKeyLastUsedIndex, b); err != nil {
+	binary.LittleEndian.PutUint64(b, uint64(nextIndex))
+	if err := wTx.Set(dbKeyNextIndex, b); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Census) getLastUsedIndex(rTx db.ReadTx) (uint64, error) {
-	b, err := rTx.Get(dbKeyLastUsedIndex)
+func (c *Census) getNextIndex(rTx db.ReadTx) (uint64, error) {
+	b, err := rTx.Get(dbKeyNextIndex)
 	if err != nil {
 		return 0, err
 	}
-	lastUsedIndex := binary.LittleEndian.Uint64(b)
-	return lastUsedIndex, nil
+	nextIndex := binary.LittleEndian.Uint64(b)
+	return nextIndex, nil
+}
+
+// AddPublicKeys adds the batch of given PublicKeys, assigning incremental
+// indexes to each one.
+func (c *Census) AddPublicKeys(pubKs []babyjub.PublicKey) ([]arbo.Invalid, error) {
+	wTx := c.db.WriteTx()
+	defer wTx.Discard()
+
+	nextIndex, err := c.getNextIndex(wTx)
+	if err != nil {
+		return nil, err
+	}
+
+	if nextIndex+uint64(len(pubKs)) > maxNLeafs {
+		return nil, fmt.Errorf("%s, current index: %d, trying to add %d keys",
+			ErrMaxNLeafsReached, nextIndex, len(pubKs))
+	}
+	var indexes [][]byte
+	var pubKHashes [][]byte
+	for i := 0; i < len(pubKs); i++ {
+		// overflow in index should not be possible, as previously the
+		// number of keys being added is already checked
+		index := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(int(nextIndex)+i))) //nolint:gomnd
+		indexes = append(indexes[:], index)
+
+		// store the mapping between PublicKey->Index
+		pubKComp := pubKs[i].Compress()
+		if err := wTx.Set(pubKComp[:], index); err != nil {
+			return nil, err
+		}
+
+		pubKHash, err := poseidon.Hash([]*big.Int{pubKs[i].X, pubKs[i].Y})
+		if err != nil {
+			return nil, err
+		}
+		pubKHashes = append(pubKHashes, arbo.BigIntToBytes(hashLen, pubKHash))
+	}
+
+	invalids, err := c.tree.AddBatchWithTx(wTx, indexes, pubKHashes)
+	if err != nil {
+		return invalids, err
+	}
+	if len(invalids) != 0 {
+		return invalids, fmt.Errorf("Can not add %d PublicKeys", len(invalids))
+	}
+
+	// TODO check overflow
+	if err = c.setNextIndex(wTx, (nextIndex)+uint64(len(pubKs))); err != nil {
+		return nil, err
+	}
+
+	// commit the db.WriteTx
+	if err := wTx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }
