@@ -29,7 +29,7 @@ func newTestDB(c *qt.C) db.Database {
 func newTestCensus(c *qt.C) *Census {
 	database := newTestDB(c)
 	opts := Options{database}
-	census, err := NewCensus(opts)
+	census, err := New(opts)
 	c.Assert(err, qt.IsNil)
 	return census
 }
@@ -81,14 +81,14 @@ func TestAddPublicKeys(t *testing.T) {
 
 	nKeys := 100
 	// generate the publicKeys
-	var pks []babyjub.PublicKey
+	var pubKs []babyjub.PublicKey
 	for i := 0; i < nKeys; i++ {
 		sk := babyjub.NewRandPrivKey()
-		pk := sk.Public()
-		pks = append(pks, *pk)
+		pubK := sk.Public()
+		pubKs = append(pubKs, *pubK)
 	}
 
-	invalids, err := census.AddPublicKeys(pks)
+	invalids, err := census.AddPublicKeys(pubKs)
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(invalids), qt.Equals, 0)
 
@@ -102,12 +102,12 @@ func TestAddPublicKeys(t *testing.T) {
 	// generate more publicKeys
 	for i := 0; i < nKeys/2; i++ {
 		sk := babyjub.NewRandPrivKey()
-		pk := sk.Public()
-		pks = append(pks, *pk)
+		pubK := sk.Public()
+		pubKs = append(pubKs, *pubK)
 	}
 
 	// add the new publicKeys to the census
-	invalids, err = census.AddPublicKeys(pks[nKeys:])
+	invalids, err = census.AddPublicKeys(pubKs[nKeys:])
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(invalids), qt.Equals, 0)
 
@@ -122,9 +122,9 @@ func TestAddPublicKeys(t *testing.T) {
 	// corresponding index in the db
 	rTx = census.db.ReadTx()
 	defer rTx.Discard()
-	for i := 0; i < len(pks); i++ {
-		pkComp := pks[i].Compress()
-		indexBytes, err := rTx.Get(pkComp[:])
+	for i := 0; i < len(pubKs); i++ {
+		pubK := pubKs[i].Compress()
+		indexBytes, err := rTx.Get(pubK[:])
 		c.Assert(err, qt.IsNil)
 		index := binary.LittleEndian.Uint64(indexBytes)
 		c.Assert(index, qt.Equals, uint64(i))
@@ -137,36 +137,36 @@ func TestGetProofAndCheckMerkleProof(t *testing.T) {
 
 	nKeys := 100
 	// generate the publicKeys
-	var pks []babyjub.PublicKey
+	var pubKs []babyjub.PublicKey
 	for i := 0; i < nKeys; i++ {
 		sk := babyjub.NewRandPrivKey()
-		pk := sk.Public()
-		pks = append(pks, *pk)
+		pubK := sk.Public()
+		pubKs = append(pubKs, *pubK)
 	}
 
-	invalids, err := census.AddPublicKeys(pks)
+	invalids, err := census.AddPublicKeys(pubKs)
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(invalids), qt.Equals, 0)
 
-	census.Editable = false
+	census.editable = false
 	root, err := census.tree.Root()
 	c.Assert(err, qt.IsNil)
 
 	for i := 0; i < nKeys; i++ {
-		proof, err := census.GetProof(pks[i])
+		index, proof, err := census.GetProof(pubKs[i])
 		c.Assert(err, qt.IsNil)
 
 		// check the proof using the CheckMerkleProof method
-		v, err := CheckProof(root, proof, i, pks[i])
+		v, err := CheckProof(root, proof, index, pubKs[i])
 		c.Assert(err, qt.IsNil)
 		c.Assert(v, qt.IsTrue)
 
 		// check the proof using directly using arbo's method
-		index := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(i))) //nolint:gomnd
-		hashPubK, err := hashPubKBytes(pks[i])
+		indexBytes := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(index))) //nolint:gomnd
+		hashPubK, err := hashPubKBytes(pubKs[i])
 		c.Assert(err, qt.IsNil)
 
-		v, err = arbo.CheckProof(arbo.HashFunctionPoseidon, index, hashPubK, root, proof)
+		v, err = arbo.CheckProof(arbo.HashFunctionPoseidon, indexBytes, hashPubK, root, proof)
 		c.Assert(err, qt.IsNil)
 		c.Assert(v, qt.IsTrue)
 	}
