@@ -95,8 +95,10 @@ func (cb *CensusBuilder) NewCensus(pubKs []babyjub.PublicKey) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	// return the nextCensusID, while in background the Census will be
+
+	// TODO return the nextCensusID, while in background the Census will be
 	// created
+
 	err = cb.loadCensusIfNotYet(nextCensusID)
 	if err != nil {
 		return 0, err
