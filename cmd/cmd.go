@@ -5,7 +5,11 @@ import (
 	"path/filepath"
 
 	"github.com/aragon/zkmultisig-node/api"
+	"github.com/aragon/zkmultisig-node/censusbuilder"
+	"github.com/aragon/zkmultisig-node/votesaggregator"
 	flag "github.com/spf13/pflag"
+	"go.vocdoni.io/dvote/db"
+	"go.vocdoni.io/dvote/db/pebbledb"
 	"go.vocdoni.io/dvote/log"
 )
 
@@ -36,7 +40,25 @@ func main() {
 
 	log.Debugf("Config: %#v\n", config)
 
-	a, err := api.New(config.censusBuilder, config.votesAggregator)
+	var censusBuilder *censusbuilder.CensusBuilder
+	var votesAggregator *votesaggregator.VotesAggregator
+	if config.censusBuilder {
+		opts := db.Options{Path: filepath.Join(config.dir, "censusbuilder")}
+		database, err := pebbledb.New(opts)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		censusBuilder, err = censusbuilder.New(database, filepath.Join(config.dir, "subsdb"))
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	if config.votesAggregator {
+		log.Fatal("VotesAggregator not available yet")
+	}
+
+	a, err := api.New(censusBuilder, votesAggregator)
 	if err != nil {
 		log.Fatal(err)
 	}

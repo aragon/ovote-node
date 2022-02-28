@@ -57,6 +57,9 @@ func New(opts Options) (*Census, error) {
 		// ThresholdNLeafs: not specified, use the default
 	}
 
+	// TODO benchmark wether to do the approach of creating a new db dir
+	// for each Census, or to use the same db for all the Censuses using a
+	// different db prefix for each Census.
 	wTx := opts.DB.WriteTx()
 	defer wTx.Discard()
 
@@ -115,14 +118,24 @@ func (c *Census) Size() (uint64, error) {
 	return c.getNextIndex(rTx)
 }
 
-// TODO probably not needed
-// func hashPubK(pubK babyjub.PublicKey) (*big.Int, error) {
-//         pubKHash, err := poseidon.Hash([]*big.Int{pubK.X, pubK.Y})
-//         if err != nil {
-//                 return nil, err
-//         }
-//         return pubKHash, nil
-// }
+var dbKeyStatus = []byte("status")
+
+// SetStatus stores the given status into the Census db
+func (c *Census) SetStatus(wTx db.WriteTx, status string) error {
+	if err := wTx.Set(dbKeyStatus, []byte(status)); err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetStatus returns the status of the Census
+func (c *Census) GetStatus(rTx db.ReadTx) (string, error) {
+	b, err := rTx.Get(dbKeyStatus)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
 
 func hashPubKBytes(pubK babyjub.PublicKey) ([]byte, error) {
 	pubKHash, err := poseidon.Hash([]*big.Int{pubK.X, pubK.Y})

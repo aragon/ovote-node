@@ -3,12 +3,14 @@ package censusbuilder
 import (
 	"encoding/binary"
 	"fmt"
+	"path/filepath"
 	"strconv"
 
 	"github.com/aragon/zkmultisig-node/census"
 	"github.com/iden3/go-iden3-crypto/babyjub"
 	"go.vocdoni.io/dvote/db"
 	"go.vocdoni.io/dvote/db/pebbledb"
+	"go.vocdoni.io/dvote/log"
 )
 
 // CensusBuilder manages multiple Census MerkleTrees
@@ -72,7 +74,7 @@ func (cb *CensusBuilder) getNextCensusID(rTx db.ReadTx) (uint64, error) {
 func (cb *CensusBuilder) loadCensusIfNotYet(censusID uint64) error {
 	if _, ok := cb.censuses[censusID]; !ok {
 		// census not loaded, load it
-		optsDB := db.Options{Path: cb.subDBsPath + "/" + strconv.Itoa(int(censusID))}
+		optsDB := db.Options{Path: filepath.Join(cb.subDBsPath, strconv.Itoa(int(censusID)))}
 		database, err := pebbledb.New(optsDB)
 		if err != nil {
 			return err
@@ -88,7 +90,7 @@ func (cb *CensusBuilder) loadCensusIfNotYet(censusID uint64) error {
 }
 
 // NewCensus will create a new Census, if the Census already exists, will load it
-func (cb *CensusBuilder) NewCensus(pubKs []babyjub.PublicKey) (uint64, error) {
+func (cb *CensusBuilder) NewCensus() (uint64, error) {
 	rTx := cb.db.ReadTx()
 	defer rTx.Discard()
 	nextCensusID, err := cb.getNextCensusID(rTx)
@@ -96,15 +98,7 @@ func (cb *CensusBuilder) NewCensus(pubKs []babyjub.PublicKey) (uint64, error) {
 		return 0, err
 	}
 
-	// TODO return the nextCensusID, while in background the Census will be
-	// created
-
 	err = cb.loadCensusIfNotYet(nextCensusID)
-	if err != nil {
-		return 0, err
-	}
-
-	err = cb.AddPublicKeys(nextCensusID, pubKs)
 	if err != nil {
 		return 0, err
 	}
@@ -119,6 +113,7 @@ func (cb *CensusBuilder) NewCensus(pubKs []babyjub.PublicKey) (uint64, error) {
 	if err := wTx.Commit(); err != nil {
 		return 0, err
 	}
+	log.Debugf("[CensusID=%d] New census created", nextCensusID)
 
 	return nextCensusID, nil
 }
@@ -145,6 +140,14 @@ func (cb *CensusBuilder) CensusRoot(censusID uint64) ([]byte, error) {
 	return root, nil
 }
 
+// CensusInfo returns metadata about the census
+func (cb *CensusBuilder) CensusInfo(censusID uint64) (string, error) {
+	// TODO return a struct containing if it's closed, the CensusRoot, etc.
+	// Also, the struct will contain the Status/Error message that the
+	// Census has stored in its db.
+	return fmt.Sprintf("WIP, this will return info about CensusID: %d", censusID), nil
+}
+
 // AddPublicKeys adds the batch of given PublicKeys to the Census for the given
 // censusID.
 func (cb *CensusBuilder) AddPublicKeys(censusID uint64, pubKs []babyjub.PublicKey) error {
@@ -157,7 +160,42 @@ func (cb *CensusBuilder) AddPublicKeys(censusID uint64, pubKs []babyjub.PublicKe
 		return err
 	}
 	if len(invalids) != 0 {
-		fmt.Println("TODO handle invalids")
+		return fmt.Errorf("CensusBuilder.AddPublicKeys error: %d invalid"+
+			" keys, invalid msg for key %d: %s", len(invalids),
+			invalids[0].Index, invalids[0].Error)
+	}
+	log.Debugf("[CensusID=%d] %d PublicKeys added", censusID, len(pubKs))
+	return nil
+}
+
+// AddPublicKeysAndStoreError will call the AddPublicKeys and if there is an
+// error, it will store it into the DB. This method is designed to be called
+// from a goroutine.
+func (cb *CensusBuilder) AddPublicKeysAndStoreError(censusID uint64, pubKs []babyjub.PublicKey) {
+	if err := cb.AddPublicKeys(censusID, pubKs); err != nil {
+		log.Debugf("[CensusID=%d] error: %s", err)
+		if err2 := cb.SetStatus(censusID, err.Error()); err2 != nil {
+			log.Errorf("Error while trying to store CensusID:%d status: %s. Error: %s",
+				censusID, err, err2)
+		}
+	}
+}
+
+// SetStatus stores the given status into the CensusID db
+func (cb *CensusBuilder) SetStatus(censusID uint64, status string) error {
+	err := cb.loadCensusIfNotYet(censusID)
+	if err != nil {
+		return err
+	}
+	wTx := cb.db.WriteTx()
+	defer wTx.Discard()
+	err = cb.censuses[censusID].SetStatus(wTx, status)
+	if err != nil {
+		return err
+	}
+	// commit the db.WriteTx
+	if err := wTx.Commit(); err != nil {
+		return err
 	}
 	return nil
 }
