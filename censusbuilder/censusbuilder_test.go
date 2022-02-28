@@ -3,6 +3,7 @@ package censusbuilder
 import (
 	"testing"
 
+	"github.com/aragon/zkmultisig-node/census"
 	qt "github.com/frankban/quicktest"
 	"github.com/iden3/go-iden3-crypto/babyjub"
 	"go.vocdoni.io/dvote/db"
@@ -106,4 +107,42 @@ func TestAddPublicKeys(t *testing.T) {
 	root2, err = cb.CensusRoot(censusID2)
 	c.Assert(err, qt.IsNil)
 	c.Assert(root2, qt.Not(qt.DeepEquals), root1)
+}
+
+func TestGetProof(t *testing.T) {
+	c := qt.New(t)
+
+	nKeys := 100
+	// generate the publicKeys
+	var pubKs []babyjub.PublicKey
+	for i := 0; i < nKeys; i++ {
+		sk := babyjub.NewRandPrivKey()
+		pubK := sk.Public()
+		pubKs = append(pubKs, *pubK)
+	}
+
+	// create the CensusBuilder
+	database := newTestDB(c)
+	cb, err := New(database, c.TempDir())
+	c.Assert(err, qt.IsNil)
+
+	censusID1, err := cb.NewCensus()
+	c.Assert(err, qt.IsNil)
+	err = cb.AddPublicKeys(censusID1, pubKs)
+	c.Assert(err, qt.IsNil)
+	err = cb.CloseCensus(censusID1)
+	c.Assert(err, qt.IsNil)
+
+	root1, err := cb.CensusRoot(censusID1)
+	c.Assert(err, qt.IsNil)
+
+	for i := 0; i < nKeys; i++ {
+		index, proof, err := cb.GetProof(censusID1, &pubKs[i])
+		c.Assert(err, qt.IsNil)
+		c.Assert(index, qt.Equals, uint64(i))
+
+		v, err := census.CheckProof(root1, proof, index, &pubKs[i])
+		c.Assert(err, qt.IsNil)
+		c.Assert(v, qt.IsTrue)
+	}
 }

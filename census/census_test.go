@@ -153,17 +153,17 @@ func TestGetProofAndCheckMerkleProof(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 
 	for i := 0; i < nKeys; i++ {
-		index, proof, err := census.GetProof(pubKs[i])
+		index, proof, err := census.GetProof(&pubKs[i])
 		c.Assert(err, qt.IsNil)
 
 		// check the proof using the CheckMerkleProof method
-		v, err := CheckProof(root, proof, index, pubKs[i])
+		v, err := CheckProof(root, proof, index, &pubKs[i])
 		c.Assert(err, qt.IsNil)
 		c.Assert(v, qt.IsTrue)
 
 		// check the proof using directly using arbo's method
 		indexBytes := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(index))) //nolint:gomnd
-		hashPubK, err := hashPubKBytes(pubKs[i])
+		hashPubK, err := hashPubKBytes(&pubKs[i])
 		c.Assert(err, qt.IsNil)
 
 		v, err = arbo.CheckProof(arbo.HashFunctionPoseidon, indexBytes, hashPubK, root, proof)

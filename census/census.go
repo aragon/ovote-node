@@ -57,9 +57,10 @@ func New(opts Options) (*Census, error) {
 		// ThresholdNLeafs: not specified, use the default
 	}
 
-	// TODO benchmark wether to do the approach of creating a new db dir
-	// for each Census, or to use the same db for all the Censuses using a
-	// different db prefix for each Census.
+	// TODO benchmark concurrent usage to determine wether to do the
+	// approach of creating a new db dir for each Census, or to use the
+	// same db for all the Censuses using a different db prefix for each
+	// Census.
 	wTx := opts.DB.WriteTx()
 	defer wTx.Discard()
 
@@ -137,7 +138,7 @@ func (c *Census) GetStatus(rTx db.ReadTx) (string, error) {
 	return string(b), nil
 }
 
-func hashPubKBytes(pubK babyjub.PublicKey) ([]byte, error) {
+func hashPubKBytes(pubK *babyjub.PublicKey) ([]byte, error) {
 	pubKHash, err := poseidon.Hash([]*big.Int{pubK.X, pubK.Y})
 	if err != nil {
 		return nil, err
@@ -202,7 +203,7 @@ func (c *Census) AddPublicKeys(pubKs []babyjub.PublicKey) ([]arbo.Invalid, error
 			return nil, err
 		}
 
-		pubKHashBytes, err := hashPubKBytes(pubKs[i])
+		pubKHashBytes, err := hashPubKBytes(&pubKs[i])
 		if err != nil {
 			return nil, err
 		}
@@ -232,7 +233,7 @@ func (c *Census) AddPublicKeys(pubKs []babyjub.PublicKey) ([]arbo.Invalid, error
 
 // GetProof returns the leaf Value and the MerkleProof compressed for the given
 // PublicKey
-func (c *Census) GetProof(pubK babyjub.PublicKey) (uint64, []byte, error) {
+func (c *Census) GetProof(pubK *babyjub.PublicKey) (uint64, []byte, error) {
 	if c.editable {
 		// if editable is true, means that the Census is still being
 		// updated. MerkleProofs will be generated once the Census is
@@ -274,7 +275,7 @@ func (c *Census) GetProof(pubK babyjub.PublicKey) (uint64, []byte, error) {
 
 // CheckProof checks a given MerkleProof of the given PublicKey (& index)
 // for the given CensusRoot
-func CheckProof(root, proof []byte, index uint64, pubK babyjub.PublicKey) (bool, error) {
+func CheckProof(root, proof []byte, index uint64, pubK *babyjub.PublicKey) (bool, error) {
 	indexBytes := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(index))) //nolint:gomnd
 	hashPubK, err := hashPubKBytes(pubK)
 	if err != nil {

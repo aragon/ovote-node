@@ -241,3 +241,17 @@ func (cb *CensusBuilder) SetStatus(censusID uint64, status string) error {
 	}
 	return nil
 }
+
+// GetProof returns the leaf Value and the MerkleProof compressed for the given
+// PublicKey in the given CensusID
+func (cb *CensusBuilder) GetProof(censusID uint64, pubK *babyjub.PublicKey) (
+	uint64, []byte, error) {
+	if err := cb.loadCensusIfNotYet(censusID); err != nil {
+		return 0, nil, err
+	}
+	index, proof, err := cb.censuses[censusID].GetProof(pubK)
+	if err != nil {
+		return 0, nil, err
+	}
+	return index, proof, nil
+}

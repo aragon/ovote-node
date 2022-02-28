@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/aragon/zkmultisig-node/censusbuilder"
+	"github.com/aragon/zkmultisig-node/types"
 	"github.com/aragon/zkmultisig-node/votesaggregator"
 	"github.com/gin-gonic/gin"
 	"go.vocdoni.io/dvote/log"
@@ -34,7 +35,7 @@ func New(censusBuilder *censusbuilder.CensusBuilder,
 	if censusBuilder != nil {
 		a.cb = censusBuilder
 
-		// r.GET("/census", a.getCensus) // TODO
+		// r.GET("/census", a.getCensuses) // TODO
 		r.POST("/census", a.postNewCensus)
 		r.GET("/census/:censusid", a.getCensus)
 		r.POST("/census/:censusid", a.postAddKeys)
@@ -141,9 +142,32 @@ func (a *API) getCensus(c *gin.Context) {
 }
 
 func (a *API) getMerkleProofHandler(c *gin.Context) {
-	// censusID := c.Param("censusID")
-	// pubKey := c.Param("pubkey")
+	censusIDStr := c.Param("censusid")
+	censusIDInt, err := strconv.Atoi(censusIDStr)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+	censusID := uint64(censusIDInt)
 
-	// TODO check if census is closed
-	// TODO get MerkleProof
+	pubK, err := types.HexToPublicKey(c.Param("pubkey"))
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+
+	// check if census is closed
+	if _, err := a.cb.CensusRoot(censusID); err != nil {
+		returnErr(c, err)
+		return
+	}
+
+	// get MerkleProof
+	index, proof, err := a.cb.GetProof(censusID, pubK)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK,
+		types.CensusProof{Index: index, MerkleProof: proof})
 }
