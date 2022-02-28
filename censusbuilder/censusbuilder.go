@@ -3,6 +3,7 @@ package censusbuilder
 import (
 	"encoding/binary"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -42,6 +43,9 @@ func New(database db.Database, subDBsPath string) (*CensusBuilder, error) {
 		}
 	}
 
+	// TODO check that nextCensusID matches the last subdb Census db in
+	// disk
+
 	// commit the db.WriteTx
 	if err := wTx.Commit(); err != nil {
 		return nil, err
@@ -70,11 +74,43 @@ func (cb *CensusBuilder) getNextCensusID(rTx db.ReadTx) (uint64, error) {
 	return nextCensusID, nil
 }
 
+// createCensus will create the Census sub-db and point to it in memory
+func (cb *CensusBuilder) createCensus(censusID uint64) error {
+	path := filepath.Join(cb.subDBsPath, strconv.Itoa(int(censusID)))
+
+	// check if sub-db already exists for the Census
+	_, err := os.Stat(path)
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("can not createCensus, err: %s", err)
+	}
+
+	optsDB := db.Options{Path: path}
+	database, err := pebbledb.New(optsDB)
+	if err != nil {
+		return err
+	}
+	optsCensus := census.Options{DB: database}
+	c, err := census.New(optsCensus)
+	if err != nil {
+		return err
+	}
+	cb.censuses[censusID] = c
+	return nil
+}
+
 // loadCensusIfNotYet will load the Census in memory if it is not loaded yet
 func (cb *CensusBuilder) loadCensusIfNotYet(censusID uint64) error {
+	path := filepath.Join(cb.subDBsPath, strconv.Itoa(int(censusID)))
+
 	if _, ok := cb.censuses[censusID]; !ok {
+		// check if sub-db exists for the Census
+		_, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("CensusID=%d does not exist yet", censusID)
+		}
+
 		// census not loaded, load it
-		optsDB := db.Options{Path: filepath.Join(cb.subDBsPath, strconv.Itoa(int(censusID)))}
+		optsDB := db.Options{Path: path}
 		database, err := pebbledb.New(optsDB)
 		if err != nil {
 			return err
@@ -89,6 +125,10 @@ func (cb *CensusBuilder) loadCensusIfNotYet(censusID uint64) error {
 	return nil
 }
 
+// TODO to create a new Census, add keys, and close it, an ethereum signature
+// will be required, to ensure that all these actions are performed by the same
+// key. Probably the authentication will be at the API level.
+
 // NewCensus will create a new Census, if the Census already exists, will load it
 func (cb *CensusBuilder) NewCensus() (uint64, error) {
 	rTx := cb.db.ReadTx()
@@ -98,7 +138,7 @@ func (cb *CensusBuilder) NewCensus() (uint64, error) {
 		return 0, err
 	}
 
-	err = cb.loadCensusIfNotYet(nextCensusID)
+	err = cb.createCensus(nextCensusID)
 	if err != nil {
 		return 0, err
 	}
@@ -120,6 +160,8 @@ func (cb *CensusBuilder) NewCensus() (uint64, error) {
 
 // CloseCensus closes the Census of the given censusID.
 func (cb *CensusBuilder) CloseCensus(censusID uint64) error {
+	// TODO to close the Census, the sender will need to be authorized to
+	// ensure that is the same that created the Census
 	err := cb.loadCensusIfNotYet(censusID)
 	if err != nil {
 		return err

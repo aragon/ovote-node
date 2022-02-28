@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -33,6 +34,7 @@ func New(censusBuilder *censusbuilder.CensusBuilder,
 	if censusBuilder != nil {
 		a.cb = censusBuilder
 
+		// r.GET("/census", a.getCensus) // TODO
 		r.POST("/census", a.postNewCensus)
 		r.GET("/census/:censusid", a.getCensus)
 		r.POST("/census/:censusid", a.postAddKeys)
@@ -102,6 +104,25 @@ func (a *API) postAddKeys(c *gin.Context) {
 }
 
 func (a *API) postCloseCensus(c *gin.Context) {
+	censusIDStr := c.Param("censusid")
+	censusIDInt, err := strconv.Atoi(censusIDStr)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+	censusID := uint64(censusIDInt)
+
+	if err = a.cb.CloseCensus(censusID); err != nil {
+		returnErr(c, err)
+		return
+	}
+	root, err := a.cb.CensusRoot(censusID)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+	log.Debugf("[CensusID=%d] closed. Root: %x", censusID, root)
+	c.JSON(http.StatusOK, hex.EncodeToString(root))
 }
 
 func (a *API) getCensus(c *gin.Context) {
