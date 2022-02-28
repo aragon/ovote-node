@@ -26,6 +26,26 @@ func init() {
 
 // TODO API Unit/E2E tests
 
+func getAndPrintCensusInfo(c *qt.C, censusID uint64) {
+	censusIDStr := strconv.Itoa(int(censusID))
+
+	httpClient := &http.Client{}
+	client := sling.New().Base("http://127.0.0.1:8080").Client(httpClient)
+	req, err := client.New().Get("/census/" + censusIDStr).Request()
+	c.Assert(err, qt.IsNil)
+	res, err := httpClient.Do(req)
+	c.Assert(err, qt.IsNil)
+
+	c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
+
+	body, err := ioutil.ReadAll(res.Body)
+	c.Assert(err, qt.IsNil)
+	var ci census.Info
+	err = json.Unmarshal(body, &ci)
+	c.Assert(err, qt.IsNil)
+	fmt.Printf("%#v\n", ci)
+}
+
 func TestGetCensus(t *testing.T) {
 	if !e2e {
 		t.Skip()
@@ -33,12 +53,7 @@ func TestGetCensus(t *testing.T) {
 
 	c := qt.New(t)
 
-	httpClient := &http.Client{}
-	client := sling.New().Base("http://127.0.0.1:8080").Client(httpClient)
-	req, err := client.New().Get("/census/209").Request()
-	c.Assert(err, qt.IsNil)
-	_, err = httpClient.Do(req)
-	c.Assert(err, qt.IsNil)
+	getAndPrintCensusInfo(c, 209)
 }
 
 func TestPostNewCensus(t *testing.T) {
@@ -115,6 +130,8 @@ func TestPostCloseCensus(t *testing.T) {
 	err = json.Unmarshal(body, &rootHex)
 	c.Assert(err, qt.IsNil)
 	fmt.Println(rootHex)
+
+	getAndPrintCensusInfo(c, censusID)
 }
 
 func TestGetProof(t *testing.T) {
@@ -153,6 +170,8 @@ func TestGetProof(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
+	getAndPrintCensusInfo(c, censusID)
+
 	// close Census
 	req, err = client.New().Post("/census/" + censusIDStr + "/close").BodyJSON(nil).Request()
 	c.Assert(err, qt.IsNil)
@@ -168,6 +187,8 @@ func TestGetProof(t *testing.T) {
 	fmt.Println(rootHex)
 	root, err := hex.DecodeString(rootHex)
 	c.Assert(err, qt.IsNil)
+
+	getAndPrintCensusInfo(c, censusID)
 
 	for i := 0; i < nKeys; i++ {
 		pubKiComp := pubKs[i].Compress()

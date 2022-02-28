@@ -19,6 +19,7 @@ var (
 	maxLevels int    = 64
 	maxNLeafs uint64 = uint64(math.MaxUint64)
 	maxKeyLen int    = int(math.Ceil(float64(maxLevels) / float64(8))) //nolint:gomnd
+	emptyRoot        = make([]byte, arbo.HashFunctionPoseidon.Len())
 )
 
 var (
@@ -32,6 +33,16 @@ var (
 	// which would exceed the maximum number of keys in the census.
 	ErrMaxNLeafsReached = fmt.Errorf("MaxNLeafs (%d) reached", maxNLeafs)
 )
+
+// Info contains metadata about a Census
+type Info struct {
+	// ErrMsg contains the stored error message stored for the last
+	// operation that gave error
+	ErrMsg string `json:"errMsg,omitempty"`
+	Size   uint64 `json:"size"`
+	Closed bool   `json:"closed"`
+	Root   []byte `json:"root,omitempty"`
+}
 
 // Census contains the MerkleTree with the PublicKeys
 type Census struct {
@@ -119,20 +130,32 @@ func (c *Census) Size() (uint64, error) {
 	return c.getNextIndex(rTx)
 }
 
-var dbKeyStatus = []byte("status")
+var dbKeyErrMsg = []byte("errmsg")
 
-// SetStatus stores the given status into the Census db
-func (c *Census) SetStatus(wTx db.WriteTx, status string) error {
-	if err := wTx.Set(dbKeyStatus, []byte(status)); err != nil {
+// SetErrMsg stores the given error message into the Census db
+func (c *Census) SetErrMsg(status string) error {
+	wTx := c.db.WriteTx()
+	defer wTx.Discard()
+
+	if err := wTx.Set(dbKeyErrMsg, []byte(status)); err != nil {
+		return err
+	}
+	// commit the db.WriteTx
+	if err := wTx.Commit(); err != nil {
 		return err
 	}
 	return nil
 }
 
-// GetStatus returns the status of the Census
-func (c *Census) GetStatus(rTx db.ReadTx) (string, error) {
-	b, err := rTx.Get(dbKeyStatus)
-	if err != nil {
+// GetErrMsg returns the error message of the Census
+func (c *Census) GetErrMsg() (string, error) {
+	rTx := c.db.ReadTx()
+	defer rTx.Discard()
+
+	b, err := rTx.Get(dbKeyErrMsg)
+	if err == db.ErrKeyNotFound {
+		return "", nil
+	} else if err != nil {
 		return "", err
 	}
 	return string(b), nil
@@ -157,6 +180,13 @@ func (c *Census) Close() error {
 	return nil
 }
 
+// IsClosed returns true if the census is closed, and false if the census is
+// still open
+func (c *Census) IsClosed() bool {
+	// TODO this will get the value from the db
+	return !c.editable
+}
+
 // Root returns the CensusRoot if the Census is closed.
 func (c *Census) Root() ([]byte, error) {
 	if c.editable {
@@ -169,6 +199,38 @@ func (c *Census) Root() ([]byte, error) {
 // should be used only for testing purposes.
 func (c *Census) IntermediateRoot() ([]byte, error) {
 	return c.tree.Root()
+}
+
+// Info returns metadata about the Census
+func (c *Census) Info() (*Info, error) {
+	size, err := c.Size()
+	if err != nil {
+		return nil, err
+	}
+
+	errMsg, err := c.GetErrMsg()
+	if err != nil {
+		return nil, err
+	}
+
+	isClosed := c.IsClosed()
+
+	root := emptyRoot
+	if isClosed {
+		root, err = c.Root()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	ci := &Info{
+		ErrMsg: errMsg,
+		Size:   size,
+		Closed: isClosed,
+		Root:   root,
+	}
+
+	return ci, nil
 }
 
 // AddPublicKeys adds the batch of given PublicKeys, assigning incremental

@@ -171,3 +171,44 @@ func TestGetProofAndCheckMerkleProof(t *testing.T) {
 		c.Assert(v, qt.IsTrue)
 	}
 }
+
+func TestInfo(t *testing.T) {
+	c := qt.New(t)
+
+	census := newTestCensus(c)
+
+	nKeys := 100
+	// generate the publicKeys
+	var pubKs []babyjub.PublicKey
+	for i := 0; i < nKeys; i++ {
+		sk := babyjub.NewRandPrivKey()
+		pubK := sk.Public()
+		pubKs = append(pubKs, *pubK)
+	}
+
+	invalids, err := census.AddPublicKeys(pubKs)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(invalids), qt.Equals, 0)
+
+	ci, err := census.Info()
+	c.Assert(err, qt.IsNil)
+
+	c.Assert(ci.ErrMsg, qt.Equals, "")
+	c.Assert(ci.Size, qt.Equals, uint64(100))
+	c.Assert(ci.Closed, qt.IsFalse)
+	c.Assert(ci.Root, qt.DeepEquals, emptyRoot)
+
+	err = census.Close()
+	c.Assert(err, qt.IsNil)
+
+	root, err := census.Root()
+	c.Assert(err, qt.IsNil)
+
+	ci, err = census.Info()
+	c.Assert(err, qt.IsNil)
+
+	c.Assert(ci.ErrMsg, qt.Equals, "")
+	c.Assert(ci.Size, qt.Equals, uint64(100))
+	c.Assert(ci.Closed, qt.IsTrue)
+	c.Assert(ci.Root, qt.DeepEquals, root)
+}

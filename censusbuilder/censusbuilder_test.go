@@ -6,6 +6,7 @@ import (
 	"github.com/aragon/zkmultisig-node/census"
 	qt "github.com/frankban/quicktest"
 	"github.com/iden3/go-iden3-crypto/babyjub"
+	"github.com/vocdoni/arbo"
 	"go.vocdoni.io/dvote/db"
 	"go.vocdoni.io/dvote/db/pebbledb"
 )
@@ -126,23 +127,70 @@ func TestGetProof(t *testing.T) {
 	cb, err := New(database, c.TempDir())
 	c.Assert(err, qt.IsNil)
 
-	censusID1, err := cb.NewCensus()
+	censusID, err := cb.NewCensus()
 	c.Assert(err, qt.IsNil)
-	err = cb.AddPublicKeys(censusID1, pubKs)
+	err = cb.AddPublicKeys(censusID, pubKs)
 	c.Assert(err, qt.IsNil)
-	err = cb.CloseCensus(censusID1)
+	err = cb.CloseCensus(censusID)
 	c.Assert(err, qt.IsNil)
 
-	root1, err := cb.CensusRoot(censusID1)
+	root, err := cb.CensusRoot(censusID)
 	c.Assert(err, qt.IsNil)
 
 	for i := 0; i < nKeys; i++ {
-		index, proof, err := cb.GetProof(censusID1, &pubKs[i])
+		index, proof, err := cb.GetProof(censusID, &pubKs[i])
 		c.Assert(err, qt.IsNil)
 		c.Assert(index, qt.Equals, uint64(i))
 
-		v, err := census.CheckProof(root1, proof, index, &pubKs[i])
+		v, err := census.CheckProof(root, proof, index, &pubKs[i])
 		c.Assert(err, qt.IsNil)
 		c.Assert(v, qt.IsTrue)
 	}
+}
+
+func TestCensusInfo(t *testing.T) {
+	c := qt.New(t)
+
+	nKeys := 100
+	// generate the publicKeys
+	var pubKs []babyjub.PublicKey
+	for i := 0; i < nKeys; i++ {
+		sk := babyjub.NewRandPrivKey()
+		pubK := sk.Public()
+		pubKs = append(pubKs, *pubK)
+	}
+
+	// create the CensusBuilder
+	database := newTestDB(c)
+	cb, err := New(database, c.TempDir())
+	c.Assert(err, qt.IsNil)
+
+	censusID, err := cb.NewCensus()
+	c.Assert(err, qt.IsNil)
+	err = cb.AddPublicKeys(censusID, pubKs)
+	c.Assert(err, qt.IsNil)
+
+	ci, err := cb.CensusInfo(censusID)
+	c.Assert(err, qt.IsNil)
+
+	emptyRoot := make([]byte, arbo.HashFunctionPoseidon.Len())
+
+	c.Assert(ci.ErrMsg, qt.Equals, "")
+	c.Assert(ci.Size, qt.Equals, uint64(100))
+	c.Assert(ci.Closed, qt.IsFalse)
+	c.Assert(ci.Root, qt.DeepEquals, emptyRoot)
+
+	err = cb.CloseCensus(censusID)
+	c.Assert(err, qt.IsNil)
+
+	root, err := cb.CensusRoot(censusID)
+	c.Assert(err, qt.IsNil)
+
+	ci, err = cb.CensusInfo(censusID)
+	c.Assert(err, qt.IsNil)
+
+	c.Assert(ci.ErrMsg, qt.Equals, "")
+	c.Assert(ci.Size, qt.Equals, uint64(100))
+	c.Assert(ci.Closed, qt.IsTrue)
+	c.Assert(ci.Root, qt.DeepEquals, root)
 }

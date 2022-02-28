@@ -106,7 +106,7 @@ func (cb *CensusBuilder) loadCensusIfNotYet(censusID uint64) error {
 		// check if sub-db exists for the Census
 		_, err := os.Stat(path)
 		if os.IsNotExist(err) {
-			return fmt.Errorf("CensusID=%d does not exist yet", censusID)
+			return fmt.Errorf("CensusID=%d does not exist", censusID)
 		}
 
 		// census not loaded, load it
@@ -182,12 +182,14 @@ func (cb *CensusBuilder) CensusRoot(censusID uint64) ([]byte, error) {
 	return root, nil
 }
 
-// CensusInfo returns metadata about the census
-func (cb *CensusBuilder) CensusInfo(censusID uint64) (string, error) {
-	// TODO return a struct containing if it's closed, the CensusRoot, etc.
-	// Also, the struct will contain the Status/Error message that the
-	// Census has stored in its db.
-	return fmt.Sprintf("WIP, this will return info about CensusID: %d", censusID), nil
+// CensusInfo returns metadata about the Census for the given CensusID
+func (cb *CensusBuilder) CensusInfo(censusID uint64) (*census.Info, error) {
+	err := cb.loadCensusIfNotYet(censusID)
+	if err != nil {
+		return nil, err
+	}
+
+	return cb.censuses[censusID].Info()
 }
 
 // AddPublicKeys adds the batch of given PublicKeys to the Census for the given
@@ -216,27 +218,21 @@ func (cb *CensusBuilder) AddPublicKeys(censusID uint64, pubKs []babyjub.PublicKe
 func (cb *CensusBuilder) AddPublicKeysAndStoreError(censusID uint64, pubKs []babyjub.PublicKey) {
 	if err := cb.AddPublicKeys(censusID, pubKs); err != nil {
 		log.Debugf("[CensusID=%d] error: %s", err)
-		if err2 := cb.SetStatus(censusID, err.Error()); err2 != nil {
+		if err2 := cb.SetErrMsg(censusID, err.Error()); err2 != nil {
 			log.Errorf("Error while trying to store CensusID:%d status: %s. Error: %s",
 				censusID, err, err2)
 		}
 	}
 }
 
-// SetStatus stores the given status into the CensusID db
-func (cb *CensusBuilder) SetStatus(censusID uint64, status string) error {
+// SetErrMsg stores the given error message into the CensusID db
+func (cb *CensusBuilder) SetErrMsg(censusID uint64, status string) error {
 	err := cb.loadCensusIfNotYet(censusID)
 	if err != nil {
 		return err
 	}
-	wTx := cb.db.WriteTx()
-	defer wTx.Discard()
-	err = cb.censuses[censusID].SetStatus(wTx, status)
+	err = cb.censuses[censusID].SetErrMsg(status)
 	if err != nil {
-		return err
-	}
-	// commit the db.WriteTx
-	if err := wTx.Commit(); err != nil {
 		return err
 	}
 	return nil
@@ -246,6 +242,9 @@ func (cb *CensusBuilder) SetStatus(censusID uint64, status string) error {
 // PublicKey in the given CensusID
 func (cb *CensusBuilder) GetProof(censusID uint64, pubK *babyjub.PublicKey) (
 	uint64, []byte, error) {
+	// TODO maybe add auth for this method, requiring a signature by the
+	// privK of the given PubK
+
 	if err := cb.loadCensusIfNotYet(censusID); err != nil {
 		return 0, nil, err
 	}
