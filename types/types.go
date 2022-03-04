@@ -7,11 +7,26 @@ import (
 	"github.com/iden3/go-iden3-crypto/babyjub"
 )
 
-// SignatureCompressedSize sets the size of the compressed Signature byte array
-const SignatureCompressedSize = 64
+// CensusProof contains the proof of a PublicKey in the Census Tree
+type CensusProof struct {
+	Index       uint64
+	PublicKey   babyjub.PublicKey
+	MerkleProof []byte
+}
 
-// Signature contains a babyjubjub compressed Signature
-type Signature [SignatureCompressedSize]byte
+// VotePackage represents the vote sent by the User
+type VotePackage struct {
+	Signature   babyjub.SignatureComp
+	CensusProof CensusProof
+	Vote        []byte
+}
+
+//
+// // SignatureCompressedSize sets the size of the compressed Signature byte array
+// const SignatureCompressedSize = 64
+//
+// // Signature contains a babyjubjub compressed Signature
+// type Signature [SignatureCompressedSize]byte
 
 // HexToPublicKey converts the given hex representation of a
 // babyjub.PublicKeyComp, and returns the babyjub.PublicKey
