@@ -35,7 +35,6 @@ func getAndPrintCensusInfo(c *qt.C, censusID uint64) {
 	c.Assert(err, qt.IsNil)
 	res, err := httpClient.Do(req)
 	c.Assert(err, qt.IsNil)
-
 	c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
 
 	body, err := ioutil.ReadAll(res.Body)
@@ -44,16 +43,6 @@ func getAndPrintCensusInfo(c *qt.C, censusID uint64) {
 	err = json.Unmarshal(body, &ci)
 	c.Assert(err, qt.IsNil)
 	fmt.Printf("%#v\n", ci)
-}
-
-func TestGetCensus(t *testing.T) {
-	if !e2e {
-		t.Skip()
-	}
-
-	c := qt.New(t)
-
-	getAndPrintCensusInfo(c, 209)
 }
 
 func TestPostNewCensus(t *testing.T) {
@@ -78,8 +67,45 @@ func TestPostNewCensus(t *testing.T) {
 	client := sling.New().Base("http://127.0.0.1:8080").Client(httpClient)
 	req, err := client.New().Post("/census").BodyJSON(reqData).Request()
 	c.Assert(err, qt.IsNil)
-	_, err = httpClient.Do(req)
+	res, err := httpClient.Do(req)
 	c.Assert(err, qt.IsNil)
+	c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
+}
+
+func TestPostAddKeys(t *testing.T) {
+	if !e2e {
+		t.Skip()
+	}
+
+	c := qt.New(t)
+
+	nKeys := 150
+	// generate the publicKeys
+	log.Debugf("Generating %d PublicKeys", nKeys)
+	var pubKs []babyjub.PublicKey
+	for i := 0; i < nKeys; i++ {
+		sk := babyjub.NewRandPrivKey()
+		pubK := sk.Public()
+		pubKs = append(pubKs, *pubK)
+	}
+	reqData := newCensusReq{PublicKeys: pubKs[:100]}
+	log.Debugf("%d PublicKeys created", nKeys)
+
+	httpClient := &http.Client{}
+	client := sling.New().Base("http://127.0.0.1:8080").Client(httpClient)
+	req, err := client.New().Post("/census").BodyJSON(reqData).Request()
+	c.Assert(err, qt.IsNil)
+	res, err := httpClient.Do(req)
+	c.Assert(err, qt.IsNil)
+	c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
+
+	// Add the rest of the keys
+	reqData = newCensusReq{PublicKeys: pubKs[100:]}
+	req, err = client.New().Post("/census").BodyJSON(reqData).Request()
+	c.Assert(err, qt.IsNil)
+	res, err = httpClient.Do(req)
+	c.Assert(err, qt.IsNil)
+	c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
 }
 
 func TestPostCloseCensus(t *testing.T) {
@@ -106,6 +132,7 @@ func TestPostCloseCensus(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	res, err := httpClient.Do(req)
 	c.Assert(err, qt.IsNil)
+	c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
 	defer res.Body.Close() //nolint:errcheck
 
 	body, err := ioutil.ReadAll(res.Body)
@@ -122,6 +149,7 @@ func TestPostCloseCensus(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	res, err = httpClient.Do(req)
 	c.Assert(err, qt.IsNil)
+	c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
 	defer res.Body.Close() //nolint:errcheck
 
 	body, err = ioutil.ReadAll(res.Body)
@@ -159,6 +187,7 @@ func TestGetProof(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	res, err := httpClient.Do(req)
 	c.Assert(err, qt.IsNil)
+	c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
 	defer res.Body.Close() //nolint:errcheck
 
 	body, err := ioutil.ReadAll(res.Body)
@@ -177,6 +206,7 @@ func TestGetProof(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	res, err = httpClient.Do(req)
 	c.Assert(err, qt.IsNil)
+	c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
 	defer res.Body.Close() //nolint:errcheck
 
 	body, err = ioutil.ReadAll(res.Body)
@@ -197,6 +227,7 @@ func TestGetProof(t *testing.T) {
 		c.Assert(err, qt.IsNil)
 		res, err = httpClient.Do(req)
 		c.Assert(err, qt.IsNil)
+		c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
 		defer res.Body.Close() //nolint:errcheck
 
 		body, err = ioutil.ReadAll(res.Body)

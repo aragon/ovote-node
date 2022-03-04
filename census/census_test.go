@@ -148,7 +148,8 @@ func TestGetProofAndCheckMerkleProof(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(invalids), qt.Equals, 0)
 
-	census.editable = false
+	err = census.Close()
+	c.Assert(err, qt.IsNil)
 	root, err := census.tree.Root()
 	c.Assert(err, qt.IsNil)
 

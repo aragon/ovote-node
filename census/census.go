@@ -20,6 +20,9 @@ var (
 	maxNLeafs uint64 = uint64(math.MaxUint64)
 	maxKeyLen int    = int(math.Ceil(float64(maxLevels) / float64(8))) //nolint:gomnd
 	emptyRoot        = make([]byte, arbo.HashFunctionPoseidon.Len())
+
+	dbKeyNextIndex    = []byte("nextIndex")
+	dbKeyCensusClosed = []byte("censusClosed")
 )
 
 var (
@@ -48,9 +51,6 @@ type Info struct {
 type Census struct {
 	tree *arbo.Tree
 	db   db.Database
-	// TODO 'editable' will need to be stored in the DB to keep the state
-	// if the server is reseted
-	editable bool
 }
 
 // Options is used to pass the parameters to load a new Census
@@ -81,9 +81,8 @@ func New(opts Options) (*Census, error) {
 	}
 
 	c := &Census{
-		tree:     tree,
-		editable: true,
-		db:       opts.DB,
+		tree: tree,
+		db:   opts.DB,
 	}
 
 	// if nextIndex is not set in the db, initialize it to 0
@@ -95,6 +94,11 @@ func New(opts Options) (*Census, error) {
 		}
 	}
 
+	// store editable=true if
+	if err := wTx.Set(dbKeyCensusClosed, []byte{0}); err != nil {
+		return nil, err
+	}
+
 	// commit the db.WriteTx
 	if err := wTx.Commit(); err != nil {
 		return nil, err
@@ -102,8 +106,6 @@ func New(opts Options) (*Census, error) {
 
 	return c, nil
 }
-
-var dbKeyNextIndex = []byte("nextIndex")
 
 func (c *Census) setNextIndex(wTx db.WriteTx, nextIndex uint64) error {
 	b := make([]byte, 8)
@@ -171,32 +173,55 @@ func hashPubKBytes(pubK *babyjub.PublicKey) ([]byte, error) {
 
 // Close closes the census
 func (c *Census) Close() error {
-	// TODO this will be done through a db entry instead of a in-memory
-	// parameter
-	if !c.editable {
+	isClosed, err := c.IsClosed()
+	if err != nil {
+		return err
+	}
+	if isClosed {
 		return fmt.Errorf("Census already closed")
 	}
-	c.editable = false
+	wTx := c.db.WriteTx()
+	defer wTx.Discard()
+	if err := wTx.Set(dbKeyCensusClosed, []byte{1}); err != nil {
+		return err
+	}
+	// commit the db.WriteTx
+	if err := wTx.Commit(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // IsClosed returns true if the census is closed, and false if the census is
 // still open
-func (c *Census) IsClosed() bool {
-	// TODO this will get the value from the db
-	return !c.editable
+func (c *Census) IsClosed() (bool, error) {
+	rTx := c.db.ReadTx()
+	defer rTx.Discard()
+
+	b, err := rTx.Get(dbKeyCensusClosed)
+	if err != nil {
+		return false, err
+	}
+
+	return bytes.Equal(b, []byte{1}), nil
 }
 
 // Root returns the CensusRoot if the Census is closed.
 func (c *Census) Root() ([]byte, error) {
-	if c.editable {
+	isClosed, err := c.IsClosed()
+	if err != nil {
+		return nil, err
+	}
+
+	if !isClosed {
 		return nil, ErrCensusNotClosed
 	}
 	return c.tree.Root()
 }
 
-// IntermediateRoot returns the CensusRoot even if the Census is not closed. It
-// should be used only for testing purposes.
+// IntermediateRoot returns the CensusRoot even if the Census is not closed.
+// WARNING: It should be used only for testing purposes.
 func (c *Census) IntermediateRoot() ([]byte, error) {
 	return c.tree.Root()
 }
@@ -213,7 +238,10 @@ func (c *Census) Info() (*Info, error) {
 		return nil, err
 	}
 
-	isClosed := c.IsClosed()
+	isClosed, err := c.IsClosed()
+	if err != nil {
+		return nil, err
+	}
 
 	root := emptyRoot
 	if isClosed {
@@ -236,7 +264,11 @@ func (c *Census) Info() (*Info, error) {
 // AddPublicKeys adds the batch of given PublicKeys, assigning incremental
 // indexes to each one.
 func (c *Census) AddPublicKeys(pubKs []babyjub.PublicKey) ([]arbo.Invalid, error) {
-	if !c.editable {
+	isClosed, err := c.IsClosed()
+	if err != nil {
+		return nil, err
+	}
+	if isClosed {
 		return nil, ErrCensusClosed
 	}
 	wTx := c.db.WriteTx()
@@ -296,10 +328,14 @@ func (c *Census) AddPublicKeys(pubKs []babyjub.PublicKey) ([]arbo.Invalid, error
 // GetProof returns the leaf Value and the MerkleProof compressed for the given
 // PublicKey
 func (c *Census) GetProof(pubK *babyjub.PublicKey) (uint64, []byte, error) {
-	if c.editable {
-		// if editable is true, means that the Census is still being
-		// updated. MerkleProofs will be generated once the Census is
-		// closed for the final CensusRoot
+	isClosed, err := c.IsClosed()
+	if err != nil {
+		return 0, nil, err
+	}
+	if !isClosed {
+		// if the Census is not closed, means that the Census is still
+		// being updated. MerkleProofs will be generated once the
+		// Census is closed for the final CensusRoot
 		return 0, nil, ErrCensusNotClosed
 	}
 
