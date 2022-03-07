@@ -3,9 +3,16 @@ package types
 import (
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/iden3/go-iden3-crypto/babyjub"
+	"github.com/iden3/go-iden3-crypto/poseidon"
+	"github.com/vocdoni/arbo"
+)
+
+var (
+	hashLen int = arbo.HashFunctionPoseidon.Len()
 )
 
 // CensusProof contains the proof of a PublicKey in the Census Tree
@@ -31,6 +38,64 @@ type Process struct {
 	CensusRoot       []byte
 	EthBlockNum      uint64
 	InsertedDatetime time.Time
+}
+
+func (vp *VotePackage) verifySignature() error {
+	voteBI := arbo.BytesToBigInt(vp.Vote)
+	sigUncompressed, err := vp.Signature.Decompress()
+	if err != nil {
+		return err
+	}
+	v := vp.CensusProof.PublicKey.VerifyPoseidon(
+		voteBI, sigUncompressed)
+	if !v {
+		return fmt.Errorf("signature verification failed")
+	}
+	return nil
+}
+func (vp *VotePackage) verifyMerkleProof(root []byte) error {
+	indexBytes := Uint64ToIndex(vp.CensusProof.Index)
+	pubKHashBytes, err := HashPubKBytes(vp.CensusProof.PublicKey)
+	if err != nil {
+		return err
+	}
+	v, err := arbo.CheckProof(arbo.HashFunctionPoseidon, indexBytes,
+		pubKHashBytes, root, vp.CensusProof.MerkleProof)
+	if err != nil {
+		return err
+	}
+	if !v {
+		return fmt.Errorf("merkleproof verification failed")
+	}
+	return nil
+}
+
+// Verify checks the signature and merkleproof of the VotePackage
+func (vp *VotePackage) Verify(root []byte) error {
+	if err := vp.verifySignature(); err != nil {
+		return err
+	}
+	if err := vp.verifyMerkleProof(root); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Uint64ToIndex returns the bytes representation of the given uint64 that will
+// be used as a leaf index in the MerkleTree
+func Uint64ToIndex(u uint64) []byte {
+	indexBytes := arbo.BigIntToBytes(32, big.NewInt(int64(int(u)))) //nolint:gomnd
+	return indexBytes
+}
+
+// HashPubKBytes returns the bytes representation of the Poseidon hash of the
+// given PublicKey, that will be used as a leaf value in the MerkleTree
+func HashPubKBytes(pubK *babyjub.PublicKey) ([]byte, error) {
+	pubKHash, err := poseidon.Hash([]*big.Int{pubK.X, pubK.Y})
+	if err != nil {
+		return nil, err
+	}
+	return arbo.BigIntToBytes(hashLen, pubKHash), nil
 }
 
 //
