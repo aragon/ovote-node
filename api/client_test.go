@@ -99,9 +99,17 @@ func TestPostAddKeys(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
 
+	// get the censusID from the response
+	body, err := ioutil.ReadAll(res.Body)
+	c.Assert(err, qt.IsNil)
+	var censusID uint64
+	err = json.Unmarshal(body, &censusID)
+	c.Assert(err, qt.IsNil)
+	censusIDStr := strconv.Itoa(int(censusID))
+
 	// Add the rest of the keys
 	reqData = newCensusReq{PublicKeys: pubKs[100:]}
-	req, err = client.New().Post("/census").BodyJSON(reqData).Request()
+	req, err = client.New().Post("/census/" + censusIDStr).BodyJSON(reqData).Request()
 	c.Assert(err, qt.IsNil)
 	res, err = httpClient.Do(req)
 	c.Assert(err, qt.IsNil)
@@ -135,6 +143,7 @@ func TestPostCloseCensus(t *testing.T) {
 	c.Assert(res.StatusCode, qt.Equals, http.StatusOK)
 	defer res.Body.Close() //nolint:errcheck
 
+	// get the censusID from the response
 	body, err := ioutil.ReadAll(res.Body)
 	c.Assert(err, qt.IsNil)
 	var censusID uint64

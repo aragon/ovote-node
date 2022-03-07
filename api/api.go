@@ -46,7 +46,7 @@ func New(censusBuilder *censusbuilder.CensusBuilder,
 
 	if censusBuilder != nil {
 		a.va = votesAggregator
-		r.POST("/process/:censusroot", a.postVote)
+		r.POST("/process/:processid", a.postVote)
 	}
 
 	a.r = r
@@ -84,6 +84,8 @@ func (a *API) postNewCensus(c *gin.Context) {
 		return
 	}
 
+	// TODO maybe remove the key addition, to force usage of separated
+	// endpoints (newCensus, and then addKeys)
 	go a.cb.AddPublicKeysAndStoreError(censusID, d.PublicKeys)
 
 	c.JSON(http.StatusOK, censusID)
@@ -174,17 +176,19 @@ func (a *API) getMerkleProofHandler(c *gin.Context) {
 		returnErr(c, err)
 		return
 	}
+	// PublicKey not returned, as is already known by the user
 	c.JSON(http.StatusOK,
 		types.CensusProof{Index: index, MerkleProof: proof})
 }
 
 func (a *API) postVote(c *gin.Context) {
-	censusRootHex := c.Param("censusroot")
-	censusRoot, err := hex.DecodeString(censusRootHex)
+	processIDStr := c.Param("processID")
+	processIDInt, err := strconv.Atoi(processIDStr)
 	if err != nil {
 		returnErr(c, err)
 		return
 	}
+	processID := uint64(processIDInt)
 
 	var vote types.VotePackage
 	err = c.ShouldBindJSON(&vote)
@@ -193,7 +197,7 @@ func (a *API) postVote(c *gin.Context) {
 		return
 	}
 
-	err = a.va.AddVote(censusRoot, vote)
+	err = a.va.AddVote(processID, vote)
 	if err != nil {
 		returnErr(c, err)
 		return

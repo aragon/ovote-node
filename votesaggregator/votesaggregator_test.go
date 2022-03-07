@@ -34,13 +34,19 @@ func TestStoreAndReadVotes(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	votes := test.GenVotes(c, testCensus)
 
+	// store a process for the test
+	processID := uint64(123)
+	ethBlockNum := uint64(10)
+	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum)
+	c.Assert(err, qt.IsNil)
+
 	for i := 0; i < len(votes); i++ {
-		err = va.AddVote(censusRoot, votes[i])
+		err = va.AddVote(processID, votes[i])
 		c.Assert(err, qt.IsNil)
 	}
 
 	// try to store a vote with already stored index
-	err = va.AddVote(censusRoot, votes[0])
+	err = va.AddVote(processID, votes[0])
 	c.Assert(err, qt.Not(qt.IsNil))
 	c.Assert(err.Error(), qt.Equals, "UNIQUE constraint failed: votepackages.indx")
 

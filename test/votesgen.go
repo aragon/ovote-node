@@ -66,7 +66,7 @@ func GenVotes(c *qt.C, cens *Census) []types.VotePackage {
 			Signature: sig,
 			CensusProof: types.CensusProof{
 				Index:       index,
-				PublicKey:   cens.Keys.PublicKeys[i],
+				PublicKey:   &cens.Keys.PublicKeys[i],
 				MerkleProof: proof,
 			},
 			Vote: voteBytes,

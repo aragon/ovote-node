@@ -3,15 +3,16 @@ package types
 import (
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/iden3/go-iden3-crypto/babyjub"
 )
 
 // CensusProof contains the proof of a PublicKey in the Census Tree
 type CensusProof struct {
-	Index       uint64
-	PublicKey   babyjub.PublicKey
-	MerkleProof []byte
+	Index       uint64             `json:"index"`
+	PublicKey   *babyjub.PublicKey `json:"publicKey"`
+	MerkleProof []byte             `json:"merkleProof"`
 }
 
 // VotePackage represents the vote sent by the User
@@ -19,6 +20,17 @@ type VotePackage struct {
 	Signature   babyjub.SignatureComp
 	CensusProof CensusProof
 	Vote        []byte
+}
+
+// Process represents a voting process
+type Process struct {
+	// ID is determined by the SmartContract, is unique for each Process
+	ID uint64
+	// CensusRoot is determined by the SmartContract, the same CensusRoot
+	// can be reused by different Processes
+	CensusRoot       []byte
+	EthBlockNum      uint64
+	InsertedDatetime time.Time
 }
 
 //

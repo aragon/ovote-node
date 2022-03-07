@@ -17,12 +17,12 @@ func New(sqlite *db.SQLite) (*VotesAggregator, error) {
 
 // AddVote adds to the VotesAggregator's db the given vote for the given
 // CensusRoot
-func (va *VotesAggregator) AddVote(censusRoot []byte, vote types.VotePackage) error {
+func (va *VotesAggregator) AddVote(processID uint64, vote types.VotePackage) error {
 	// TODO get the CensusRoot exists in the list of accepted CensusRoots
 	// (comes from the SmartContract)
 	// TODO check signature (babyjubjub)
 	// TODO check MerkleProof for the CensusRoot
 
 	// store VotePackage in the SQL DB for the given CensusRoot
-	return va.db.StoreVotePackage(censusRoot, vote)
+	return va.db.StoreVotePackage(processID, vote)
 }

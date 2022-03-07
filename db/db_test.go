@@ -13,7 +13,7 @@ import (
 	"github.com/vocdoni/arbo"
 )
 
-func TestStoreAndReadVotes(t *testing.T) {
+func TestStoreProcess(t *testing.T) {
 	c := qt.New(t)
 
 	db, err := sql.Open("sqlite3", filepath.Join(c.TempDir(), "testdb.sqlite3"))
@@ -25,7 +25,52 @@ func TestStoreAndReadVotes(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 
 	// prepare the votes
+	processID := uint64(123)
 	censusRoot := []byte("censusRoot")
+	ethBlockNum := uint64(10)
+
+	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum)
+	c.Assert(err, qt.IsNil)
+
+	// try to store the same processID, expecting error
+	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum)
+	c.Assert(err, qt.Not(qt.IsNil))
+	c.Assert(err.Error(), qt.Equals, "UNIQUE constraint failed: processes.processID")
+
+	// try to store the a different processID, but the same censusRoot,
+	// expecting no error
+	err = sqlite.StoreProcess(processID+1, censusRoot, ethBlockNum)
+	c.Assert(err, qt.IsNil)
+
+	// read the stored votes
+	processes, err := sqlite.ReadProcesses()
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(processes), qt.Equals, 2)
+	c.Assert(processes[0].ID, qt.Equals, processID)
+	c.Assert(processes[0].CensusRoot, qt.DeepEquals, censusRoot)
+	c.Assert(processes[0].EthBlockNum, qt.Equals, ethBlockNum)
+}
+
+func TestStoreAndReadVotes(t *testing.T) {
+	c := qt.New(t)
+
+	db, err := sql.Open("sqlite3", filepath.Join(c.TempDir(), "testdb.sqlite3"))
+	c.Assert(err, qt.IsNil)
+
+	sqlite := NewSQLite(db)
+
+	err = sqlite.Migrate()
+	c.Assert(err, qt.IsNil)
+
+	// store a processID in which the votes will be related
+	processID := uint64(123)
+	censusRoot := []byte("censusRoot")
+	ethBlockNum := uint64(10)
+
+	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum)
+	c.Assert(err, qt.IsNil)
+
+	// prepare the votes
 	nVotes := 10
 
 	var votesAdded []types.VotePackage
@@ -40,24 +85,24 @@ func TestStoreAndReadVotes(t *testing.T) {
 			Signature: sig,
 			CensusProof: types.CensusProof{
 				Index:       uint64(i),
-				PublicKey:   *pubK,
+				PublicKey:   pubK,
 				MerkleProof: []byte("test" + strconv.Itoa(i)),
 			},
 			Vote: voteBytes,
 		}
 		votesAdded = append(votesAdded, vote)
 
-		err = sqlite.StoreVotePackage(censusRoot, vote)
+		err = sqlite.StoreVotePackage(processID, vote)
 		c.Assert(err, qt.IsNil)
 	}
 
 	// try to store a vote with already stored index
-	err = sqlite.StoreVotePackage(censusRoot, votesAdded[0])
+	err = sqlite.StoreVotePackage(processID, votesAdded[0])
 	c.Assert(err, qt.Not(qt.IsNil))
 	c.Assert(err.Error(), qt.Equals, "UNIQUE constraint failed: votepackages.indx")
 
 	// read the stored votes
-	votes, err := sqlite.ReadVotePackagesByCensusRoot(censusRoot)
+	votes, err := sqlite.ReadVotePackagesByProcessID(processID)
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(votes), qt.Equals, nVotes)
 }
