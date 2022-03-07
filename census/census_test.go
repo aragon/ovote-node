@@ -3,9 +3,9 @@ package census
 import (
 	"encoding/binary"
 	"math"
-	"math/big"
 	"testing"
 
+	"github.com/aragon/zkmultisig-node/types"
 	qt "github.com/frankban/quicktest"
 	"github.com/iden3/go-iden3-crypto/babyjub"
 	"github.com/vocdoni/arbo"
@@ -163,8 +163,9 @@ func TestGetProofAndCheckMerkleProof(t *testing.T) {
 		c.Assert(v, qt.IsTrue)
 
 		// check the proof using directly using arbo's method
-		indexBytes := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(index))) //nolint:gomnd
-		hashPubK, err := hashPubKBytes(&pubKs[i])
+		// indexBytes := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(index))) //nolint:gomnd
+		indexBytes := types.Uint64ToIndex(index)
+		hashPubK, err := types.HashPubKBytes(&pubKs[i])
 		c.Assert(err, qt.IsNil)
 
 		v, err = arbo.CheckProof(arbo.HashFunctionPoseidon, indexBytes, hashPubK, root, proof)
@@ -197,7 +198,7 @@ func TestInfo(t *testing.T) {
 	c.Assert(ci.ErrMsg, qt.Equals, "")
 	c.Assert(ci.Size, qt.Equals, uint64(100))
 	c.Assert(ci.Closed, qt.IsFalse)
-	c.Assert(ci.Root, qt.DeepEquals, emptyRoot)
+	c.Assert(ci.Root, qt.DeepEquals, types.EmptyRoot)
 
 	err = census.Close()
 	c.Assert(err, qt.IsNil)

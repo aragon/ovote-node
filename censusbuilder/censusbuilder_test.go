@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/aragon/zkmultisig-node/census"
+	"github.com/aragon/zkmultisig-node/test"
 	qt "github.com/frankban/quicktest"
-	"github.com/iden3/go-iden3-crypto/babyjub"
 	"github.com/vocdoni/arbo"
 	"go.vocdoni.io/dvote/db"
 	"go.vocdoni.io/dvote/db/pebbledb"
@@ -56,12 +56,7 @@ func TestAddPublicKeys(t *testing.T) {
 
 	nKeys := 100
 	// generate the publicKeys
-	var pubKs []babyjub.PublicKey
-	for i := 0; i < nKeys; i++ {
-		sk := babyjub.NewRandPrivKey()
-		pubK := sk.Public()
-		pubKs = append(pubKs, *pubK)
-	}
+	keys := test.GenUserKeys(nKeys)
 
 	// create the CensusBuilder
 	database := newTestDB(c)
@@ -70,7 +65,7 @@ func TestAddPublicKeys(t *testing.T) {
 
 	censusID1, err := cb.NewCensus()
 	c.Assert(err, qt.IsNil)
-	err = cb.AddPublicKeys(censusID1, pubKs)
+	err = cb.AddPublicKeys(censusID1, keys.PublicKeys)
 	c.Assert(err, qt.IsNil)
 	err = cb.CloseCensus(censusID1)
 	c.Assert(err, qt.IsNil)
@@ -81,7 +76,7 @@ func TestAddPublicKeys(t *testing.T) {
 	// create a 2nd Census, with the same pubKs than the 1st one
 	censusID2, err := cb.NewCensus()
 	c.Assert(err, qt.IsNil)
-	err = cb.AddPublicKeys(censusID2, pubKs)
+	err = cb.AddPublicKeys(censusID2, keys.PublicKeys)
 	c.Assert(err, qt.IsNil)
 
 	_, err = cb.CensusRoot(censusID2)
@@ -93,13 +88,8 @@ func TestAddPublicKeys(t *testing.T) {
 	c.Assert(root2, qt.DeepEquals, root1)
 
 	// create new pubKs
-	pubKs = []babyjub.PublicKey{}
-	for i := 0; i < nKeys; i++ {
-		sk := babyjub.NewRandPrivKey()
-		pubK := sk.Public()
-		pubKs = append(pubKs, *pubK)
-	}
-	err = cb.AddPublicKeys(censusID2, pubKs)
+	keys2 := test.GenUserKeys(nKeys)
+	err = cb.AddPublicKeys(censusID2, keys2.PublicKeys)
 	c.Assert(err, qt.IsNil)
 
 	err = cb.CloseCensus(censusID2)
@@ -115,12 +105,7 @@ func TestGetProof(t *testing.T) {
 
 	nKeys := 100
 	// generate the publicKeys
-	var pubKs []babyjub.PublicKey
-	for i := 0; i < nKeys; i++ {
-		sk := babyjub.NewRandPrivKey()
-		pubK := sk.Public()
-		pubKs = append(pubKs, *pubK)
-	}
+	keys := test.GenUserKeys(nKeys)
 
 	// create the CensusBuilder
 	database := newTestDB(c)
@@ -129,7 +114,7 @@ func TestGetProof(t *testing.T) {
 
 	censusID, err := cb.NewCensus()
 	c.Assert(err, qt.IsNil)
-	err = cb.AddPublicKeys(censusID, pubKs)
+	err = cb.AddPublicKeys(censusID, keys.PublicKeys)
 	c.Assert(err, qt.IsNil)
 	err = cb.CloseCensus(censusID)
 	c.Assert(err, qt.IsNil)
@@ -138,11 +123,11 @@ func TestGetProof(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 
 	for i := 0; i < nKeys; i++ {
-		index, proof, err := cb.GetProof(censusID, &pubKs[i])
+		index, proof, err := cb.GetProof(censusID, &keys.PublicKeys[i])
 		c.Assert(err, qt.IsNil)
 		c.Assert(index, qt.Equals, uint64(i))
 
-		v, err := census.CheckProof(root, proof, index, &pubKs[i])
+		v, err := census.CheckProof(root, proof, index, &keys.PublicKeys[i])
 		c.Assert(err, qt.IsNil)
 		c.Assert(v, qt.IsTrue)
 	}
@@ -153,12 +138,7 @@ func TestCensusInfo(t *testing.T) {
 
 	nKeys := 100
 	// generate the publicKeys
-	var pubKs []babyjub.PublicKey
-	for i := 0; i < nKeys; i++ {
-		sk := babyjub.NewRandPrivKey()
-		pubK := sk.Public()
-		pubKs = append(pubKs, *pubK)
-	}
+	keys := test.GenUserKeys(nKeys)
 
 	// create the CensusBuilder
 	database := newTestDB(c)
@@ -167,7 +147,7 @@ func TestCensusInfo(t *testing.T) {
 
 	censusID, err := cb.NewCensus()
 	c.Assert(err, qt.IsNil)
-	err = cb.AddPublicKeys(censusID, pubKs)
+	err = cb.AddPublicKeys(censusID, keys.PublicKeys)
 	c.Assert(err, qt.IsNil)
 
 	ci, err := cb.CensusInfo(censusID)

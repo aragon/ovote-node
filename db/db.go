@@ -2,6 +2,8 @@ package db
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 
 	"github.com/aragon/zkmultisig-node/types"
 )
@@ -84,6 +86,22 @@ func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, ethBlockNum uint64) 
 		return err
 	}
 	return nil
+}
+
+// ReadProcessByProcessID reads the types.Process by the given processID
+func (r *SQLite) ReadProcessByProcessID(processID uint64) (*types.Process, error) {
+	row := r.db.QueryRow("SELECT * FROM processes WHERE processID = ?", processID)
+
+	var process types.Process
+	err := row.Scan(&process.ID, &process.CensusRoot, &process.EthBlockNum,
+		&process.InsertedDatetime)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("ProcessID:%d, does not exist in the db", processID)
+		}
+		return nil, err
+	}
+	return &process, nil
 }
 
 // ReadProcesses reads all the stored types.Process

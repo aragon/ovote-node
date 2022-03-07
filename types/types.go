@@ -84,8 +84,7 @@ func (vp *VotePackage) Verify(root []byte) error {
 // Uint64ToIndex returns the bytes representation of the given uint64 that will
 // be used as a leaf index in the MerkleTree
 func Uint64ToIndex(u uint64) []byte {
-	indexBytes := arbo.BigIntToBytes(32, big.NewInt(int64(int(u)))) //nolint:gomnd
-	return indexBytes
+	return arbo.BigIntToBytes(MaxKeyLen, big.NewInt(int64(int(u)))) //nolint:gomnd
 }
 
 // HashPubKBytes returns the bytes representation of the Poseidon hash of the

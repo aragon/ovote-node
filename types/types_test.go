@@ -19,7 +19,7 @@ func TestVerifyCensusProof(t *testing.T) {
 
 	arboConfig := arbo.Config{
 		Database:     database,
-		MaxLevels:    256,
+		MaxLevels:    MaxLevels,
 		HashFunction: arbo.HashFunctionPoseidon,
 		// ThresholdNLeafs: not specified, use the default
 	}

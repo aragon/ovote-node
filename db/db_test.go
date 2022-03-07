@@ -42,6 +42,12 @@ func TestStoreProcess(t *testing.T) {
 	err = sqlite.StoreProcess(processID+1, censusRoot, ethBlockNum)
 	c.Assert(err, qt.IsNil)
 
+	process, err := sqlite.ReadProcessByProcessID(processID)
+	c.Assert(err, qt.IsNil)
+	c.Assert(process.ID, qt.Equals, processID)
+	c.Assert(process.CensusRoot, qt.DeepEquals, censusRoot)
+	c.Assert(process.EthBlockNum, qt.Equals, ethBlockNum)
+
 	// read the stored votes
 	processes, err := sqlite.ReadProcesses()
 	c.Assert(err, qt.IsNil)

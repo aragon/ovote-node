@@ -5,22 +5,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
-	"math/big"
 
+	"github.com/aragon/zkmultisig-node/types"
 	"github.com/iden3/go-iden3-crypto/babyjub"
-	"github.com/iden3/go-iden3-crypto/poseidon"
 	"github.com/vocdoni/arbo"
 	"go.vocdoni.io/dvote/db"
 )
 
 var (
-	hashLen   int    = arbo.HashFunctionPoseidon.Len()
-	maxLevels int    = 64
-	maxNLeafs uint64 = uint64(math.MaxUint64)
-	maxKeyLen int    = int(math.Ceil(float64(maxLevels) / float64(8))) //nolint:gomnd
-	emptyRoot        = make([]byte, arbo.HashFunctionPoseidon.Len())
-
 	dbKeyNextIndex    = []byte("nextIndex")
 	dbKeyCensusClosed = []byte("censusClosed")
 )
@@ -34,7 +26,7 @@ var (
 	ErrCensusClosed = errors.New("Census closed, can not add more keys")
 	// ErrMaxNLeafsReached is used when trying to add a number of new publicKeys
 	// which would exceed the maximum number of keys in the census.
-	ErrMaxNLeafsReached = fmt.Errorf("MaxNLeafs (%d) reached", maxNLeafs)
+	ErrMaxNLeafsReached = fmt.Errorf("MaxNLeafs (%d) reached", types.MaxNLeafs)
 )
 
 // Info contains metadata about a Census
@@ -63,7 +55,7 @@ type Options struct {
 func New(opts Options) (*Census, error) {
 	arboConfig := arbo.Config{
 		Database:     opts.DB,
-		MaxLevels:    maxLevels,
+		MaxLevels:    types.MaxLevels,
 		HashFunction: arbo.HashFunctionPoseidon,
 		// ThresholdNLeafs: not specified, use the default
 	}
@@ -163,14 +155,6 @@ func (c *Census) GetErrMsg() (string, error) {
 	return string(b), nil
 }
 
-func hashPubKBytes(pubK *babyjub.PublicKey) ([]byte, error) {
-	pubKHash, err := poseidon.Hash([]*big.Int{pubK.X, pubK.Y})
-	if err != nil {
-		return nil, err
-	}
-	return arbo.BigIntToBytes(hashLen, pubKHash), nil
-}
-
 // Close closes the census
 func (c *Census) Close() error {
 	isClosed, err := c.IsClosed()
@@ -243,7 +227,7 @@ func (c *Census) Info() (*Info, error) {
 		return nil, err
 	}
 
-	root := emptyRoot
+	root := types.EmptyRoot
 	if isClosed {
 		root, err = c.Root()
 		if err != nil {
@@ -279,7 +263,7 @@ func (c *Census) AddPublicKeys(pubKs []babyjub.PublicKey) ([]arbo.Invalid, error
 		return nil, err
 	}
 
-	if nextIndex+uint64(len(pubKs)) > maxNLeafs {
+	if nextIndex+uint64(len(pubKs)) > types.MaxNLeafs {
 		return nil, fmt.Errorf("%s, current index: %d, trying to add %d keys",
 			ErrMaxNLeafsReached, nextIndex, len(pubKs))
 	}
@@ -288,7 +272,9 @@ func (c *Census) AddPublicKeys(pubKs []babyjub.PublicKey) ([]arbo.Invalid, error
 	for i := 0; i < len(pubKs); i++ {
 		// overflow in index should not be possible, as previously the
 		// number of keys being added is already checked
-		index := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(int(nextIndex)+i))) //nolint:gomnd
+		// index := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(int(nextIndex)+i)))
+		// fmt.Println(nextIndex, i, nextIndex+uint64(i))
+		index := types.Uint64ToIndex(nextIndex + uint64(i))
 		indexes = append(indexes[:], index)
 
 		// store the mapping between PublicKey->Index
@@ -297,7 +283,7 @@ func (c *Census) AddPublicKeys(pubKs []babyjub.PublicKey) ([]arbo.Invalid, error
 			return nil, err
 		}
 
-		pubKHashBytes, err := hashPubKBytes(&pubKs[i])
+		pubKHashBytes, err := types.HashPubKBytes(&pubKs[i])
 		if err != nil {
 			return nil, err
 		}
@@ -349,7 +335,8 @@ func (c *Census) GetProof(pubK *babyjub.PublicKey) (uint64, []byte, error) {
 		return 0, nil, err
 	}
 	indexU64 := binary.LittleEndian.Uint64(indexBytes)
-	index := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(indexU64))) //nolint:gomnd
+	index := types.Uint64ToIndex(indexU64)
+	// index := arbo.BigIntToBytes(types.MaxKeyLen, big.NewInt(int64(indexU64)))
 
 	_, leafV, s, existence, err := c.tree.GenProof(index)
 	if err != nil {
@@ -360,7 +347,7 @@ func (c *Census) GetProof(pubK *babyjub.PublicKey) (uint64, []byte, error) {
 		return 0, nil,
 			fmt.Errorf("publicKey does not exist in the census (%x)", pubKComp[:])
 	}
-	hashPubKBytes, err := hashPubKBytes(pubK)
+	hashPubKBytes, err := types.HashPubKBytes(pubK)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -374,8 +361,9 @@ func (c *Census) GetProof(pubK *babyjub.PublicKey) (uint64, []byte, error) {
 // CheckProof checks a given MerkleProof of the given PublicKey (& index)
 // for the given CensusRoot
 func CheckProof(root, proof []byte, index uint64, pubK *babyjub.PublicKey) (bool, error) {
-	indexBytes := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(index))) //nolint:gomnd
-	hashPubK, err := hashPubKBytes(pubK)
+	// indexBytes := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(index))) //nolint:gomnd
+	indexBytes := types.Uint64ToIndex(index)
+	hashPubK, err := types.HashPubKBytes(pubK)
 	if err != nil {
 		return false, err
 	}

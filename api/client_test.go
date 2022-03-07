@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/aragon/zkmultisig-node/census"
+	"github.com/aragon/zkmultisig-node/test"
 	"github.com/aragon/zkmultisig-node/types"
 	"github.com/dghubble/sling"
 	qt "github.com/frankban/quicktest"
-	"github.com/iden3/go-iden3-crypto/babyjub"
 	"go.vocdoni.io/dvote/log"
 )
 
@@ -55,13 +55,8 @@ func TestPostNewCensus(t *testing.T) {
 	nKeys := 100
 	// generate the publicKeys
 	log.Debugf("Generating %d PublicKeys", nKeys)
-	var reqData newCensusReq
-	for i := 0; i < nKeys; i++ {
-		sk := babyjub.NewRandPrivKey()
-		pubK := sk.Public()
-		reqData.PublicKeys = append(reqData.PublicKeys, *pubK)
-	}
-	log.Debugf("%d PublicKeys created", nKeys)
+	keys := test.GenUserKeys(nKeys)
+	reqData := newCensusReq{PublicKeys: keys.PublicKeys}
 
 	httpClient := &http.Client{}
 	client := sling.New().Base("http://127.0.0.1:8080").Client(httpClient)
@@ -82,13 +77,9 @@ func TestPostAddKeys(t *testing.T) {
 	nKeys := 150
 	// generate the publicKeys
 	log.Debugf("Generating %d PublicKeys", nKeys)
-	var pubKs []babyjub.PublicKey
-	for i := 0; i < nKeys; i++ {
-		sk := babyjub.NewRandPrivKey()
-		pubK := sk.Public()
-		pubKs = append(pubKs, *pubK)
-	}
-	reqData := newCensusReq{PublicKeys: pubKs[:100]}
+	keys := test.GenUserKeys(nKeys)
+
+	reqData := newCensusReq{PublicKeys: keys.PublicKeys[:100]}
 	log.Debugf("%d PublicKeys created", nKeys)
 
 	httpClient := &http.Client{}
@@ -108,7 +99,7 @@ func TestPostAddKeys(t *testing.T) {
 	censusIDStr := strconv.Itoa(int(censusID))
 
 	// Add the rest of the keys
-	reqData = newCensusReq{PublicKeys: pubKs[100:]}
+	reqData = newCensusReq{PublicKeys: keys.PublicKeys[100:]}
 	req, err = client.New().Post("/census/" + censusIDStr).BodyJSON(reqData).Request()
 	c.Assert(err, qt.IsNil)
 	res, err = httpClient.Do(req)
@@ -126,13 +117,8 @@ func TestPostCloseCensus(t *testing.T) {
 	nKeys := 100
 	// generate the publicKeys
 	log.Debugf("Generating %d PublicKeys", nKeys)
-	var reqData newCensusReq
-	for i := 0; i < nKeys; i++ {
-		sk := babyjub.NewRandPrivKey()
-		pubK := sk.Public()
-		reqData.PublicKeys = append(reqData.PublicKeys, *pubK)
-	}
-	log.Debugf("%d PublicKeys created", nKeys)
+	keys := test.GenUserKeys(nKeys)
+	reqData := newCensusReq{PublicKeys: keys.PublicKeys}
 
 	httpClient := &http.Client{}
 	client := sling.New().Base("http://127.0.0.1:8080").Client(httpClient)
@@ -181,14 +167,8 @@ func TestGetProof(t *testing.T) {
 	nKeys := 100
 	// generate the publicKeys
 	log.Debugf("Generating %d PublicKeys", nKeys)
-	var pubKs []babyjub.PublicKey
-	for i := 0; i < nKeys; i++ {
-		sk := babyjub.NewRandPrivKey()
-		pubK := sk.Public()
-		pubKs = append(pubKs, *pubK)
-	}
-	reqData := newCensusReq{PublicKeys: pubKs}
-	log.Debugf("%d PublicKeys created", nKeys)
+	keys := test.GenUserKeys(nKeys)
+	reqData := newCensusReq{PublicKeys: keys.PublicKeys}
 
 	httpClient := &http.Client{}
 	client := sling.New().Base("http://127.0.0.1:8080").Client(httpClient)
@@ -230,7 +210,7 @@ func TestGetProof(t *testing.T) {
 	getAndPrintCensusInfo(c, censusID)
 
 	for i := 0; i < nKeys; i++ {
-		pubKiComp := pubKs[i].Compress()
+		pubKiComp := keys.PublicKeys[i].Compress()
 		pubKiHex := hex.EncodeToString(pubKiComp[:])
 		req, err = client.New().Get("/census/" + censusIDStr + "/merkleproof/" + pubKiHex).Request()
 		c.Assert(err, qt.IsNil)
@@ -246,7 +226,7 @@ func TestGetProof(t *testing.T) {
 		c.Assert(err, qt.IsNil)
 		fmt.Printf("Index: %d, MerkleProof: %x\n", cp.Index, cp.MerkleProof)
 
-		v, err := census.CheckProof(root, cp.MerkleProof, cp.Index, &pubKs[i])
+		v, err := census.CheckProof(root, cp.MerkleProof, cp.Index, &keys.PublicKeys[i])
 		c.Assert(err, qt.IsNil)
 		c.Assert(v, qt.IsTrue)
 	}
