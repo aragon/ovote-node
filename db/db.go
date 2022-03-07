@@ -22,7 +22,7 @@ func NewSQLite(db *sql.DB) *SQLite {
 func (r *SQLite) Migrate() error {
 	query := `
 	CREATE TABLE IF NOT EXISTS votepackages(
-		censusID INT NOT NULL,
+		censusRoot BLOB NOT NULL,
 		signature BLOB NOT NULL,
 		indx INTEGER NOT NULL PRIMARY KEY UNIQUE,
 		publicKey BLOB NOT NULL UNIQUE,
@@ -36,11 +36,11 @@ func (r *SQLite) Migrate() error {
 	return err
 }
 
-// StoreVotePackage stores the given types.VotePackage for the given CensusID
-func (r *SQLite) StoreVotePackage(censusID uint64, vote types.VotePackage) error {
+// StoreVotePackage stores the given types.VotePackage for the given CensusRoot
+func (r *SQLite) StoreVotePackage(censusRoot []byte, vote types.VotePackage) error {
 	sqlAddvote := `
 	INSERT INTO votepackages(
-		censusID,
+		censusRoot,
 		signature,
 		indx,
 		publicKey,
@@ -56,7 +56,7 @@ func (r *SQLite) StoreVotePackage(censusID uint64, vote types.VotePackage) error
 	}
 	defer stmt.Close() //nolint:errcheck
 
-	_, err = stmt.Exec(int(censusID), vote.Signature[:],
+	_, err = stmt.Exec(censusRoot, vote.Signature[:],
 		vote.CensusProof.Index, vote.CensusProof.PublicKey,
 		vote.CensusProof.MerkleProof, vote.Vote)
 	if err != nil {
@@ -65,17 +65,17 @@ func (r *SQLite) StoreVotePackage(censusID uint64, vote types.VotePackage) error
 	return nil
 }
 
-// ReadVotePackagesByCensusID reads all the stored types.VotePackage for the
-// given CensusID
-func (r *SQLite) ReadVotePackagesByCensusID(censusID uint64) ([]types.VotePackage, error) {
+// ReadVotePackagesByCensusRoot reads all the stored types.VotePackage for the
+// given CensusRoot
+func (r *SQLite) ReadVotePackagesByCensusRoot(censusRoot []byte) ([]types.VotePackage, error) {
 	// TODO add pagination
 	sqlReadall := `
 	SELECT signature, indx, publicKey, merkleproof, vote FROM votepackages
-	WHERE censusID = ?
+	WHERE censusRoot = ?
 	ORDER BY datetime(InsertedDatetime) DESC
 	`
 
-	rows, err := r.db.Query(sqlReadall, censusID)
+	rows, err := r.db.Query(sqlReadall, censusRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -97,5 +97,6 @@ func (r *SQLite) ReadVotePackagesByCensusID(censusID uint64) ([]types.VotePackag
 	return votes, nil
 }
 
-// func (r *SQLite) ReadVoteByPublicKeyAndCensusID(censusID uint64) ([]types.VotePackage, error) {
-// func (r *SQLite) ReadVotesByPublicKey(censusID uint64) ([]types.VotePackage, error) {
+// func (r *SQLite) ReadVoteByPublicKeyAndCensusRoot(censusRoot []byte) (
+// 	[]types.VotePackage, error) {
+// func (r *SQLite) ReadVotesByPublicKey(censusRoot []byte) ([]types.VotePackage, error) {

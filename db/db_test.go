@@ -24,7 +24,8 @@ func TestStoreAndReadVotes(t *testing.T) {
 	err = sqlite.Migrate()
 	c.Assert(err, qt.IsNil)
 
-	censusID := uint64(11)
+	// prepare the votes
+	censusRoot := []byte("censusRoot")
 	nVotes := 10
 
 	var votesAdded []types.VotePackage
@@ -46,17 +47,17 @@ func TestStoreAndReadVotes(t *testing.T) {
 		}
 		votesAdded = append(votesAdded, vote)
 
-		err = sqlite.StoreVotePackage(censusID, vote)
+		err = sqlite.StoreVotePackage(censusRoot, vote)
 		c.Assert(err, qt.IsNil)
 	}
 
 	// try to store a vote with already stored index
-	err = sqlite.StoreVotePackage(censusID, votesAdded[0])
+	err = sqlite.StoreVotePackage(censusRoot, votesAdded[0])
 	c.Assert(err, qt.Not(qt.IsNil))
 	c.Assert(err.Error(), qt.Equals, "UNIQUE constraint failed: votepackages.indx")
 
 	// read the stored votes
-	votes, err := sqlite.ReadVotePackagesByCensusID(censusID)
+	votes, err := sqlite.ReadVotePackagesByCensusRoot(censusRoot)
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(votes), qt.Equals, nVotes)
 }

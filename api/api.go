@@ -17,6 +17,7 @@ import (
 type API struct {
 	r  *gin.Engine
 	cb *censusbuilder.CensusBuilder
+	va *votesaggregator.VotesAggregator
 }
 
 // New returns a new API with the endpoints, without starting to listen
@@ -41,6 +42,11 @@ func New(censusBuilder *censusbuilder.CensusBuilder,
 		r.POST("/census/:censusid", a.postAddKeys)
 		r.POST("/census/:censusid/close", a.postCloseCensus)
 		r.GET("/census/:censusid/merkleproof/:pubkey", a.getMerkleProofHandler)
+	}
+
+	if censusBuilder != nil {
+		a.va = votesAggregator
+		r.POST("/process/:censusroot", a.postVote)
 	}
 
 	a.r = r
@@ -170,4 +176,28 @@ func (a *API) getMerkleProofHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK,
 		types.CensusProof{Index: index, MerkleProof: proof})
+}
+
+func (a *API) postVote(c *gin.Context) {
+	censusRootHex := c.Param("censusroot")
+	censusRoot, err := hex.DecodeString(censusRootHex)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+
+	var vote types.VotePackage
+	err = c.ShouldBindJSON(&vote)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+
+	err = a.va.AddVote(censusRoot, vote)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, nil)
 }
