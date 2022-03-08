@@ -17,12 +17,18 @@ func New(sqlite *db.SQLite) (*VotesAggregator, error) {
 
 // AddVote adds to the VotesAggregator's db the given vote for the given
 // CensusRoot
-func (va *VotesAggregator) AddVote(processID uint64, vote types.VotePackage) error {
-	// TODO get the CensusRoot exists in the list of accepted CensusRoots
-	// (comes from the SmartContract)
-	// TODO check signature (babyjubjub)
-	// TODO check MerkleProof for the CensusRoot
+func (va *VotesAggregator) AddVote(processID uint64, votePackage types.VotePackage) error {
+	// get the process from the db. It's assumed that if the processID
+	// exists in the db, it exists in the SmartContract
+	process, err := va.db.ReadProcessByProcessID(processID)
+	if err != nil {
+		return err
+	}
+	// check signature (babyjubjub) and MerkleProof
+	if err := votePackage.Verify(process.CensusRoot); err != nil {
+		return err
+	}
 
 	// store VotePackage in the SQL DB for the given CensusRoot
-	return va.db.StoreVotePackage(processID, vote)
+	return va.db.StoreVotePackage(processID, votePackage)
 }

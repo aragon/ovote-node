@@ -24,9 +24,9 @@ type CensusProof struct {
 
 // VotePackage represents the vote sent by the User
 type VotePackage struct {
-	Signature   babyjub.SignatureComp
-	CensusProof CensusProof
-	Vote        []byte
+	Signature   babyjub.SignatureComp `json:"signature"`
+	CensusProof CensusProof           `json:"censusProof"`
+	Vote        []byte                `json:"vote"`
 }
 
 // Process represents a voting process

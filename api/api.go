@@ -30,7 +30,6 @@ func New(censusBuilder *censusbuilder.CensusBuilder,
 	}
 
 	a := API{}
-
 	r := gin.Default()
 
 	if censusBuilder != nil {
@@ -44,7 +43,7 @@ func New(censusBuilder *censusbuilder.CensusBuilder,
 		r.GET("/census/:censusid/merkleproof/:pubkey", a.getMerkleProofHandler)
 	}
 
-	if censusBuilder != nil {
+	if votesAggregator != nil {
 		a.va = votesAggregator
 		r.POST("/process/:processid", a.postVote)
 	}
@@ -182,7 +181,7 @@ func (a *API) getMerkleProofHandler(c *gin.Context) {
 }
 
 func (a *API) postVote(c *gin.Context) {
-	processIDStr := c.Param("processID")
+	processIDStr := c.Param("processid")
 	processIDInt, err := strconv.Atoi(processIDStr)
 	if err != nil {
 		returnErr(c, err)

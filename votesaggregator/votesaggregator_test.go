@@ -24,7 +24,7 @@ func TestStoreAndReadVotes(t *testing.T) {
 	va, err := New(sqlite)
 	c.Assert(err, qt.IsNil)
 
-	// prepare the votes
+	// prepare the census
 	keys := test.GenUserKeys(10)
 	testCensus := test.GenCensus(c, keys)
 	err = testCensus.Census.Close()
@@ -50,5 +50,13 @@ func TestStoreAndReadVotes(t *testing.T) {
 	c.Assert(err, qt.Not(qt.IsNil))
 	c.Assert(err.Error(), qt.Equals, "UNIQUE constraint failed: votepackages.indx")
 
-	// TODO try to store invalid votes/signatures/merkleproofs
+	// try to store invalid merkleproofs
+	votes[0].CensusProof.Index = 11
+	err = va.AddVote(processID, votes[0])
+	c.Assert(err.Error(), qt.Equals, "merkleproof verification failed")
+
+	// try to store invalid merkleproofs
+	votes[0].Vote = []byte("invalidvotecontent")
+	err = va.AddVote(processID, votes[0])
+	c.Assert(err.Error(), qt.Equals, "signature verification failed")
 }
