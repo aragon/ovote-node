@@ -276,7 +276,8 @@ func TestSendVotesHandler(t *testing.T) {
 	// the votesaggregator db
 	processID := uint64(123)
 	ethBlockNum := uint64(10)
-	err := sqlite.StoreProcess(processID, censusRoot, ethBlockNum)
+	ethEndBlockNum := uint64(20)
+	err := sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
 	c.Assert(err, qt.IsNil)
 
 	// prepare the votes

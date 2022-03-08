@@ -11,8 +11,20 @@ import (
 	"github.com/vocdoni/arbo"
 )
 
+// ProcessStatus type is used to define the status of the Process
+type ProcessStatus int
+
 var (
 	hashLen int = arbo.HashFunctionPoseidon.Len()
+
+	// ProcessStatusOn indicates that the process is accepting vote
+	ProcessStatusOn ProcessStatus = 0
+	// ProcessStatusProofGen indicates that the process is no longer
+	// accepting new votes and the zkProof is being generated
+	ProcessStatusProofGen ProcessStatus = 1
+	// ProcessStatusFinished indicates that the process is finished, and
+	// the zkProof is already generated
+	ProcessStatusFinished ProcessStatus = 2
 )
 
 // CensusProof contains the proof of a PublicKey in the Census Tree
@@ -37,7 +49,10 @@ type Process struct {
 	// can be reused by different Processes
 	CensusRoot       []byte
 	EthBlockNum      uint64
+	EthEndBlockNum   uint64
 	InsertedDatetime time.Time
+	// Status determines the current status of the process
+	Status ProcessStatus
 }
 
 func (vp *VotePackage) verifySignature() error {

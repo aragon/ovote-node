@@ -32,9 +32,11 @@ func (r *SQLite) Migrate() error {
 
 	query = `
 	CREATE TABLE IF NOT EXISTS processes(
-		processID INTEGER NOT NULL PRIMARY KEY UNIQUE,
+		id INTEGER NOT NULL PRIMARY KEY UNIQUE,
+		status INTEGER NOT NULL,
 		censusRoot BLOB NOT NULL,
 		ethBlockNum INTEGER NOT NULL,
+		ethEndBlockNum INTEGER NOT NULL,
 		insertedDatetime DATETIME
 	);
 	`
@@ -52,7 +54,7 @@ func (r *SQLite) Migrate() error {
 		vote BLOB NOT NULL,
 		insertedDatetime DATETIME,
 		processID INTEGER NOT NULL,
-		FOREIGN KEY(processID) REFERENCES processes(processID)
+		FOREIGN KEY(processID) REFERENCES processes(id)
 	);
 	`
 	_, err = r.db.Exec(query)
@@ -64,15 +66,19 @@ func (r *SQLite) Migrate() error {
 }
 
 // StoreProcess stores a new process with the given id, censusRoot and
-// ethBlockNum
-func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, ethBlockNum uint64) error {
+// ethBlockNum. When a new process is stored, it's assumed that it comes from
+// the SmartContract, and its status is set to types.ProcessStatusOn
+func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, ethBlockNum,
+	ethEndBlockNum uint64) error {
 	sqlAddvote := `
 	INSERT INTO processes(
-		processID,
+		id,
+		status,
 		censusRoot,
 		ethBlockNum,
+		ethEndBlockNum,
 		insertedDatetime
-	) values(?, ?, ?, CURRENT_TIMESTAMP)
+	) values(?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`
 
 	stmt, err := r.db.Prepare(sqlAddvote)
@@ -81,23 +87,58 @@ func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, ethBlockNum uint64) 
 	}
 	defer stmt.Close() //nolint:errcheck
 
-	_, err = stmt.Exec(id, censusRoot, ethBlockNum)
+	_, err = stmt.Exec(id, types.ProcessStatusOn, censusRoot, ethBlockNum, ethEndBlockNum)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// ReadProcessByProcessID reads the types.Process by the given processID
-func (r *SQLite) ReadProcessByProcessID(processID uint64) (*types.Process, error) {
-	row := r.db.QueryRow("SELECT * FROM processes WHERE processID = ?", processID)
+// UpdateProcessStatus sets the given types.ProcessStatus for the given id.
+// This method should only be called when updating from SmartContracts.
+func (r *SQLite) UpdateProcessStatus(id uint64, status types.ProcessStatus) error {
+	sqlAddvote := `
+	UPDATE processes SET status=? WHERE id=?
+	`
 
-	var process types.Process
-	err := row.Scan(&process.ID, &process.CensusRoot, &process.EthBlockNum,
-		&process.InsertedDatetime)
+	stmt, err := r.db.Prepare(sqlAddvote)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close() //nolint:errcheck
+
+	_, err = stmt.Exec(int(status), id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetProcessStatus returns the stored types.ProcessStatus for the given id
+func (r *SQLite) GetProcessStatus(id uint64) (types.ProcessStatus, error) {
+	row := r.db.QueryRow("SELECT status FROM processes WHERE id = ?", id)
+
+	var status int
+	err := row.Scan(&status)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("ProcessID:%d, does not exist in the db", processID)
+			return 0, fmt.Errorf("Process ID:%d, does not exist in the db", id)
+		}
+		return 0, err
+	}
+	return types.ProcessStatus(status), nil
+}
+
+// ReadProcessByID reads the types.Process by the given id
+func (r *SQLite) ReadProcessByID(id uint64) (*types.Process, error) {
+	row := r.db.QueryRow("SELECT * FROM processes WHERE id = ?", id)
+
+	var process types.Process
+	err := row.Scan(&process.ID, &process.Status, &process.CensusRoot,
+		&process.EthBlockNum, &process.EthEndBlockNum, &process.InsertedDatetime)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("Process ID:%d, does not exist in the db", id)
 		}
 		return nil, err
 	}
@@ -107,8 +148,7 @@ func (r *SQLite) ReadProcessByProcessID(processID uint64) (*types.Process, error
 // ReadProcesses reads all the stored types.Process
 func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 	sqlReadall := `
-	SELECT processID, censusRoot, ethBlockNum, insertedDatetime FROM processes
-	ORDER BY datetime(InsertedDatetime) DESC
+	SELECT * FROM processes	ORDER BY datetime(insertedDatetime) DESC
 	`
 
 	rows, err := r.db.Query(sqlReadall)
@@ -120,8 +160,9 @@ func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 	var processes []types.Process
 	for rows.Next() {
 		process := types.Process{}
-		err = rows.Scan(&process.ID, &process.CensusRoot,
-			&process.EthBlockNum, &process.InsertedDatetime)
+		err = rows.Scan(&process.ID, &process.Status,
+			&process.CensusRoot, &process.EthBlockNum,
+			&process.EthEndBlockNum, &process.InsertedDatetime)
 		if err != nil {
 			return nil, err
 		}

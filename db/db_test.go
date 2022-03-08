@@ -28,21 +28,22 @@ func TestStoreProcess(t *testing.T) {
 	processID := uint64(123)
 	censusRoot := []byte("censusRoot")
 	ethBlockNum := uint64(10)
+	ethEndBlockNum := uint64(20)
 
-	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum)
+	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
 	c.Assert(err, qt.IsNil)
 
 	// try to store the same processID, expecting error
-	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum)
+	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
 	c.Assert(err, qt.Not(qt.IsNil))
-	c.Assert(err.Error(), qt.Equals, "UNIQUE constraint failed: processes.processID")
+	c.Assert(err.Error(), qt.Equals, "UNIQUE constraint failed: processes.id")
 
 	// try to store the a different processID, but the same censusRoot,
 	// expecting no error
-	err = sqlite.StoreProcess(processID+1, censusRoot, ethBlockNum)
+	err = sqlite.StoreProcess(processID+1, censusRoot, ethBlockNum, ethEndBlockNum)
 	c.Assert(err, qt.IsNil)
 
-	process, err := sqlite.ReadProcessByProcessID(processID)
+	process, err := sqlite.ReadProcessByID(processID)
 	c.Assert(err, qt.IsNil)
 	c.Assert(process.ID, qt.Equals, processID)
 	c.Assert(process.CensusRoot, qt.DeepEquals, censusRoot)
@@ -55,6 +56,47 @@ func TestStoreProcess(t *testing.T) {
 	c.Assert(processes[0].ID, qt.Equals, processID)
 	c.Assert(processes[0].CensusRoot, qt.DeepEquals, censusRoot)
 	c.Assert(processes[0].EthBlockNum, qt.Equals, ethBlockNum)
+}
+
+func TestProcessStatus(t *testing.T) {
+	c := qt.New(t)
+
+	db, err := sql.Open("sqlite3", filepath.Join(c.TempDir(), "testdb.sqlite3"))
+	c.Assert(err, qt.IsNil)
+
+	sqlite := NewSQLite(db)
+
+	err = sqlite.Migrate()
+	c.Assert(err, qt.IsNil)
+
+	// prepare the votes
+	processID := uint64(123)
+	censusRoot := []byte("censusRoot")
+	ethBlockNum := uint64(10)
+	ethEndBlockNum := uint64(20)
+
+	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
+	c.Assert(err, qt.IsNil)
+
+	status, err := sqlite.GetProcessStatus(processID)
+	c.Assert(err, qt.IsNil)
+	c.Assert(status, qt.Equals, types.ProcessStatusOn)
+
+	// update status to ProofGen
+	err = sqlite.UpdateProcessStatus(processID, types.ProcessStatusProofGen)
+	c.Assert(err, qt.IsNil)
+
+	status, err = sqlite.GetProcessStatus(processID)
+	c.Assert(err, qt.IsNil)
+	c.Assert(status, qt.Equals, types.ProcessStatusProofGen)
+
+	// update status to Finished
+	err = sqlite.UpdateProcessStatus(processID, types.ProcessStatusFinished)
+	c.Assert(err, qt.IsNil)
+
+	status, err = sqlite.GetProcessStatus(processID)
+	c.Assert(err, qt.IsNil)
+	c.Assert(status, qt.Equals, types.ProcessStatusFinished)
 }
 
 func TestStoreAndReadVotes(t *testing.T) {
@@ -72,8 +114,9 @@ func TestStoreAndReadVotes(t *testing.T) {
 	processID := uint64(123)
 	censusRoot := []byte("censusRoot")
 	ethBlockNum := uint64(10)
+	ethEndBlockNum := uint64(20)
 
-	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum)
+	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
 	c.Assert(err, qt.IsNil)
 
 	// prepare the votes

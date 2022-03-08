@@ -1,6 +1,8 @@
 package votesaggregator
 
 import (
+	"fmt"
+
 	"github.com/aragon/zkmultisig-node/db"
 	"github.com/aragon/zkmultisig-node/types"
 )
@@ -20,10 +22,14 @@ func New(sqlite *db.SQLite) (*VotesAggregator, error) {
 func (va *VotesAggregator) AddVote(processID uint64, votePackage types.VotePackage) error {
 	// get the process from the db. It's assumed that if the processID
 	// exists in the db, it exists in the SmartContract
-	process, err := va.db.ReadProcessByProcessID(processID)
+	process, err := va.db.ReadProcessByID(processID)
 	if err != nil {
 		return err
 	}
+	if process.Status != types.ProcessStatusOn {
+		return fmt.Errorf("process not open, votes can not be added")
+	}
+
 	// check signature (babyjubjub) and MerkleProof
 	if err := votePackage.Verify(process.CensusRoot); err != nil {
 		return err
