@@ -32,6 +32,7 @@ func main() {
 	flag.StringVarP(&config.port, "port", "p", "8080", "network port for the HTTP API")
 	flag.BoolVarP(&config.censusBuilder, "censusbuilder", "c", false, "CensusBuilder active")
 	flag.BoolVarP(&config.votesAggregator, "votesaggregator", "v", false, "VotesAggregator active")
+	// TODO add flag for configurable threshold of minimum census size (to prevent small censuses)
 
 	flag.CommandLine.SortFlags = false
 	flag.Parse()

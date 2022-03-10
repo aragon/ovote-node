@@ -3,7 +3,6 @@ module github.com/aragon/zkmultisig-node
 go 1.17
 
 require (
-	github.com/dghubble/sling v1.3.0
 	github.com/frankban/quicktest v1.13.0
 	github.com/gin-gonic/gin v1.6.3
 	github.com/iden3/go-iden3-crypto v0.0.13
@@ -30,7 +29,6 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/go-cmp v0.5.5 // indirect
-	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/kr/pretty v0.2.1 // indirect

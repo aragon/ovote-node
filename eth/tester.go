@@ -1,0 +1,66 @@
+package eth
+
+import (
+	"github.com/aragon/zkmultisig-node/db"
+	"github.com/aragon/zkmultisig-node/types"
+)
+
+// ensure that TestEthClient implements the eth.Client interface
+var _ Client = (*TestEthClient)(nil)
+
+// TestEthClient simulates an EthReader for testing purposes
+type TestEthClient struct {
+	db              *db.SQLite
+	currentBlock    uint64
+	blocksWithEvent map[uint64][]TestEvent
+}
+
+// TestEvent is used to simulate creation of new processes in the SmartContract
+type TestEvent struct {
+	ProcessID      uint64
+	CensusRoot     []byte
+	EthEndBlockNum uint64
+}
+
+// NewTestEthClient returns a new TestEthClient with the given configuration
+func NewTestEthClient(sqlite *db.SQLite, startBlock uint64,
+	blocks map[uint64][]TestEvent) *TestEthClient {
+	return &TestEthClient{db: sqlite, currentBlock: startBlock, blocksWithEvent: blocks}
+}
+
+// AdvanceBlock simulates the advance of the EthBlockNum in the TestEthClient
+func (e *TestEthClient) AdvanceBlock() error {
+	e.currentBlock++
+	events, ok := e.blocksWithEvent[e.currentBlock]
+	if ok {
+		// simulate event from the SmartContract, and store the process
+		// into the db
+		for i := 0; i < len(events); i++ {
+			err := e.db.StoreProcess(events[i].ProcessID, events[i].CensusRoot,
+				e.currentBlock, events[i].EthEndBlockNum)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// TODO better to do this in a single SQL query (get & update)
+	// get processes that end at this block and update their status
+	processes, err := e.db.ReadProcessesByEthEndBlockNum(e.currentBlock)
+	if err != nil {
+		return err
+	}
+	for i := 0; i < len(processes); i++ {
+		err = e.db.UpdateProcessStatus(processes[i].ID, types.ProcessStatusClosed)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Start implements the EthReader.Start method of the interface
+func (e *TestEthClient) Start(fromBlock uint64) error {
+	return nil
+}
