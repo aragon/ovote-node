@@ -19,12 +19,15 @@ var (
 
 	// ProcessStatusOn indicates that the process is accepting vote
 	ProcessStatusOn ProcessStatus = 0
+	// ProcessStatusClosed indicates that the process is no longer
+	// accepting new votes, but the zkProof is still not generated
+	ProcessStatusClosed ProcessStatus = 1
 	// ProcessStatusProofGen indicates that the process is no longer
 	// accepting new votes and the zkProof is being generated
-	ProcessStatusProofGen ProcessStatus = 1
+	ProcessStatusProofGen ProcessStatus = 2
 	// ProcessStatusFinished indicates that the process is finished, and
 	// the zkProof is already generated
-	ProcessStatusFinished ProcessStatus = 2
+	ProcessStatusFinished ProcessStatus = 3
 )
 
 // CensusProof contains the proof of a PublicKey in the Census Tree
@@ -47,9 +50,16 @@ type Process struct {
 	ID uint64
 	// CensusRoot is determined by the SmartContract, the same CensusRoot
 	// can be reused by different Processes
-	CensusRoot       []byte
-	EthBlockNum      uint64
-	EthEndBlockNum   uint64
+	CensusRoot []byte
+	// EthBlockNum indicates at which Ethereum block number the process has
+	// been created
+	EthBlockNum uint64
+	// EthEndBlockNum is determined by the SmartContract, indicates the
+	// EthBlockNum where the process ends, in which the results can be
+	// published
+	EthEndBlockNum uint64
+	// InsertedDatetime contains the datetime of when the process was
+	// inserted in the db
 	InsertedDatetime time.Time
 	// Status determines the current status of the process
 	Status ProcessStatus

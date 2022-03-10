@@ -171,6 +171,34 @@ func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 	return processes, nil
 }
 
+// ReadProcessesByEthEndBlockNum reads all the stored types.Process which
+// contains the given EthEndBlockNum
+func (r *SQLite) ReadProcessesByEthEndBlockNum(ethEndBlockNum uint64) ([]types.Process, error) {
+	sqlReadall := `
+	SELECT * FROM processes WHERE ethEndBlockNum = ?
+	ORDER BY datetime(insertedDatetime) DESC
+	`
+
+	rows, err := r.db.Query(sqlReadall, ethEndBlockNum)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //nolint:errcheck
+
+	var processes []types.Process
+	for rows.Next() {
+		process := types.Process{}
+		err = rows.Scan(&process.ID, &process.Status,
+			&process.CensusRoot, &process.EthBlockNum,
+			&process.EthEndBlockNum, &process.InsertedDatetime)
+		if err != nil {
+			return nil, err
+		}
+		processes = append(processes, process)
+	}
+	return processes, nil
+}
+
 // StoreVotePackage stores the given types.VotePackage for the given CensusRoot
 func (r *SQLite) StoreVotePackage(processID uint64, vote types.VotePackage) error {
 	// TODO check that processID exists

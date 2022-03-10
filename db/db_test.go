@@ -69,7 +69,7 @@ func TestProcessStatus(t *testing.T) {
 	err = sqlite.Migrate()
 	c.Assert(err, qt.IsNil)
 
-	// prepare the votes
+	// prepare the process
 	processID := uint64(123)
 	censusRoot := []byte("censusRoot")
 	ethBlockNum := uint64(10)
@@ -97,6 +97,48 @@ func TestProcessStatus(t *testing.T) {
 	status, err = sqlite.GetProcessStatus(processID)
 	c.Assert(err, qt.IsNil)
 	c.Assert(status, qt.Equals, types.ProcessStatusFinished)
+}
+
+func TestProcessByEthEndBlockNum(t *testing.T) {
+	c := qt.New(t)
+
+	db, err := sql.Open("sqlite3", filepath.Join(c.TempDir(), "testdb.sqlite3"))
+	c.Assert(err, qt.IsNil)
+
+	sqlite := NewSQLite(db)
+
+	err = sqlite.Migrate()
+	c.Assert(err, qt.IsNil)
+
+	processID := uint64(123)
+	censusRoot := []byte("censusRoot")
+	ethBlockNum := uint64(10)
+	ethEndBlockNum := uint64(20)
+
+	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
+	c.Assert(err, qt.IsNil)
+	err = sqlite.StoreProcess(processID+1, censusRoot, ethBlockNum, ethEndBlockNum)
+	c.Assert(err, qt.IsNil)
+	err = sqlite.StoreProcess(processID+2, censusRoot, ethBlockNum, ethEndBlockNum)
+	c.Assert(err, qt.IsNil)
+	err = sqlite.StoreProcess(processID+3, censusRoot, ethBlockNum, ethEndBlockNum)
+	c.Assert(err, qt.IsNil)
+	err = sqlite.StoreProcess(processID+4, censusRoot, ethBlockNum, ethEndBlockNum+1)
+	c.Assert(err, qt.IsNil)
+	err = sqlite.StoreProcess(processID+5, censusRoot, ethBlockNum, ethEndBlockNum+1)
+	c.Assert(err, qt.IsNil)
+
+	processes, err := sqlite.ReadProcesses()
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(processes), qt.Equals, 6)
+
+	processes, err = sqlite.ReadProcessesByEthEndBlockNum(ethEndBlockNum)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(processes), qt.Equals, 4)
+
+	processes, err = sqlite.ReadProcessesByEthEndBlockNum(ethEndBlockNum + 1)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(processes), qt.Equals, 2)
 }
 
 func TestStoreAndReadVotes(t *testing.T) {
