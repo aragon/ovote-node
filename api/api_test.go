@@ -126,12 +126,28 @@ func doPostVote(c *qt.C, a API, processID uint64, vote types.VotePackage) {
 	processIDStr := strconv.Itoa(int(processID))
 	jsonReqData, err := json.Marshal(vote)
 	c.Assert(err, qt.IsNil)
-	fmt.Println("JSON", processIDStr, string(jsonReqData))
 	req, err := http.NewRequest("POST", "/process/"+processIDStr, bytes.NewBuffer(jsonReqData))
 	c.Assert(err, qt.IsNil)
 	w := httptest.NewRecorder()
 	a.r.ServeHTTP(w, req)
 	c.Assert(w.Code, qt.Equals, http.StatusOK)
+}
+
+func doGetProcess(c *qt.C, a API, processID uint64) types.Process {
+	processIDStr := strconv.Itoa(int(processID))
+
+	req, err := http.NewRequest("GET", "/process/"+processIDStr, nil)
+	c.Assert(err, qt.IsNil)
+	w := httptest.NewRecorder()
+	a.r.ServeHTTP(w, req)
+	c.Assert(w.Code, qt.Equals, http.StatusOK)
+
+	body, err := ioutil.ReadAll(w.Body)
+	c.Assert(err, qt.IsNil)
+	var process types.Process
+	err = json.Unmarshal(body, &process)
+	c.Assert(err, qt.IsNil)
+	return process
 }
 
 func prepareVotes(c *qt.C, keys test.Keys, proofs []types.CensusProof) []types.VotePackage {
@@ -241,7 +257,33 @@ func TestGetProofHandler(t *testing.T) {
 	}
 }
 
-func TestSendVotesHandler(t *testing.T) {
+func TestGetProcessInfo(t *testing.T) {
+	c := qt.New(t)
+
+	a, sqlite := newTestAPI(c)
+	a.r.GET("/process/:processid", a.getProcess)
+
+	censusRoot := []byte("testroot")
+
+	// simulate SmartContract Process creation, by adding the CensusRoot in
+	// the votesaggregator db
+	processID := uint64(123)
+	ethBlockNum := uint64(10)
+	ethEndBlockNum := uint64(20)
+	err := sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
+	c.Assert(err, qt.IsNil)
+
+	process := doGetProcess(c, a, processID)
+	c.Assert(process.Status, qt.Equals, types.ProcessStatusOn)
+
+	err = sqlite.UpdateProcessStatus(processID, types.ProcessStatusClosed)
+	c.Assert(err, qt.IsNil)
+
+	process = doGetProcess(c, a, processID)
+	c.Assert(process.Status, qt.Equals, types.ProcessStatusClosed)
+}
+
+func TestBuildCensusAndPostVoteHandler(t *testing.T) {
 	c := qt.New(t)
 
 	a, sqlite := newTestAPI(c)
@@ -286,4 +328,69 @@ func TestSendVotesHandler(t *testing.T) {
 	for i := 0; i < len(votes); i++ {
 		doPostVote(c, a, processID, votes[i])
 	}
+}
+
+func TestPostVoteHandler(t *testing.T) {
+	c := qt.New(t)
+
+	a, sqlite := newTestAPI(c)
+	a.r.POST("/process/:processid", a.postVote)
+	a.r.GET("/process/:processid", a.getProcess)
+
+	// generate the census without the API endpoints
+	nKeys := 20
+	log.Debugf("Generating %d PublicKeys", nKeys)
+	keys := test.GenUserKeys(nKeys)
+	cens := test.GenCensus(c, keys)
+	// close the census & get root
+	err := cens.Census.Close()
+	c.Assert(err, qt.IsNil)
+	censusRoot, err := cens.Census.Root()
+	c.Assert(err, qt.IsNil)
+
+	// prepare the votes
+	votes := test.GenVotes(c, cens)
+
+	// simulate SmartContract Process creation, by adding the CensusRoot in
+	// the votesaggregator db
+	processID := uint64(123)
+	ethBlockNum := uint64(10)
+	ethEndBlockNum := uint64(20)
+	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
+	c.Assert(err, qt.IsNil)
+
+	// check that getting the process status by the API returns status=On
+	process := doGetProcess(c, a, processID)
+	c.Assert(process.Status, qt.Equals, types.ProcessStatusOn)
+
+	// cast the votes except one
+	for i := 0; i < nKeys-1; i++ {
+		doPostVote(c, a, processID, votes[i])
+	}
+
+	// simulate that the EthEndBlockNum is reached and that the process has
+	// ended
+	err = sqlite.UpdateProcessStatus(processID, types.ProcessStatusClosed)
+	c.Assert(err, qt.IsNil)
+
+	// check that getting the process status by the API returns status=Closed
+	process = doGetProcess(c, a, processID)
+	c.Assert(process.Status, qt.Equals, types.ProcessStatusClosed)
+
+	// try to cast the last vote, expecting error because the process is closed
+	// doPostVote(c, a, processID, votes[nKeys-1])
+	processIDStr := strconv.Itoa(int(processID))
+	jsonReqData, err := json.Marshal(votes[nKeys-1])
+	c.Assert(err, qt.IsNil)
+	req, err := http.NewRequest("POST", "/process/"+processIDStr, bytes.NewBuffer(jsonReqData))
+	c.Assert(err, qt.IsNil)
+	w := httptest.NewRecorder()
+	a.r.ServeHTTP(w, req)
+	fmt.Println(w.Body)
+	body, err := ioutil.ReadAll(w.Body)
+	c.Assert(err, qt.IsNil)
+	var msg errorMsg
+	err = json.Unmarshal(body, &msg)
+	c.Assert(err, qt.IsNil)
+	c.Assert(msg.Message, qt.Equals, "process EthEndBlockNum (20) reached, votes can not be added")
 }

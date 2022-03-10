@@ -34,7 +34,6 @@ func New(censusBuilder *censusbuilder.CensusBuilder,
 
 	if censusBuilder != nil {
 		a.cb = censusBuilder
-
 		// r.GET("/census", a.getCensuses) // TODO
 		r.POST("/census", a.postNewCensus)
 		r.GET("/census/:censusid", a.getCensus)
@@ -46,6 +45,7 @@ func New(censusBuilder *censusbuilder.CensusBuilder,
 	if votesAggregator != nil {
 		a.va = votesAggregator
 		r.POST("/process/:processid", a.postVote)
+		r.GET("/process/:processid", a.getProcess)
 	}
 
 	a.r = r
@@ -203,4 +203,19 @@ func (a *API) postVote(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, nil)
+}
+
+func (a *API) getProcess(c *gin.Context) {
+	processIDStr := c.Param("processid")
+	processID, err := strconv.Atoi(processIDStr)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+	processInfo, err := a.va.ProcessInfo(uint64(processID))
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, processInfo)
 }

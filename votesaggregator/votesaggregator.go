@@ -17,6 +17,12 @@ func New(sqlite *db.SQLite) (*VotesAggregator, error) {
 	return &VotesAggregator{db: sqlite}, nil
 }
 
+// ProcessInfo returns info about the Process
+func (va *VotesAggregator) ProcessInfo(processID uint64) (*types.Process, error) {
+	// TODO add count of votes in the process
+	return va.db.ReadProcessByID(processID)
+}
+
 // AddVote adds to the VotesAggregator's db the given vote for the given
 // CensusRoot
 func (va *VotesAggregator) AddVote(processID uint64, votePackage types.VotePackage) error {
@@ -27,7 +33,8 @@ func (va *VotesAggregator) AddVote(processID uint64, votePackage types.VotePacka
 		return err
 	}
 	if process.Status != types.ProcessStatusOn {
-		return fmt.Errorf("process not open, votes can not be added")
+		return fmt.Errorf("process EthEndBlockNum (%d) reached, votes"+
+			" can not be added", process.EthEndBlockNum)
 	}
 
 	// check signature (babyjubjub) and MerkleProof
