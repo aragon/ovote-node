@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/aragon/zkmultisig-node/test"
 	"github.com/aragon/zkmultisig-node/types"
 	qt "github.com/frankban/quicktest"
 	"github.com/iden3/go-iden3-crypto/babyjub"
@@ -99,6 +100,45 @@ func TestProcessStatus(t *testing.T) {
 	c.Assert(status, qt.Equals, types.ProcessStatusFinished)
 }
 
+func TestProcessesByStatus(t *testing.T) {
+	c := qt.New(t)
+
+	db, err := sql.Open("sqlite3", filepath.Join(c.TempDir(), "testdb.sqlite3"))
+	c.Assert(err, qt.IsNil)
+
+	sqlite := NewSQLite(db)
+
+	err = sqlite.Migrate()
+	c.Assert(err, qt.IsNil)
+
+	censusRoot := []byte("censusRoot")
+	ethBlockNum := uint64(10)
+	ethEndBlockNum := uint64(20)
+
+	for i := 0; i < 10; i++ {
+		err = sqlite.StoreProcess(uint64(i), censusRoot, ethBlockNum, ethEndBlockNum)
+		c.Assert(err, qt.IsNil)
+	}
+
+	processes, err := sqlite.ReadProcessesByStatus(types.ProcessStatusOn)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(processes), qt.Equals, 10)
+
+	// update status to Closed for the first 4 processes
+	for i := 0; i < 4; i++ {
+		err = sqlite.UpdateProcessStatus(uint64(i), types.ProcessStatusClosed)
+		c.Assert(err, qt.IsNil)
+	}
+
+	processes, err = sqlite.ReadProcessesByStatus(types.ProcessStatusOn)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(processes), qt.Equals, 6)
+
+	processes, err = sqlite.ReadProcessesByStatus(types.ProcessStatusClosed)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(processes), qt.Equals, 4)
+}
+
 func TestProcessByEthEndBlockNum(t *testing.T) {
 	c := qt.New(t)
 
@@ -151,6 +191,25 @@ func TestStoreAndReadVotes(t *testing.T) {
 
 	err = sqlite.Migrate()
 	c.Assert(err, qt.IsNil)
+
+	// try to store a vote for a processID that does not exist yet
+	vote := []byte("test")
+	voteBI := arbo.BytesToBigInt(vote)
+	keys := test.GenUserKeys(1)
+	sig := keys.PrivateKeys[0].SignPoseidon(voteBI)
+	votePackage := types.VotePackage{
+		Signature: sig.Compress(),
+		CensusProof: types.CensusProof{
+			Index:       1,
+			PublicKey:   &keys.PublicKeys[0],
+			MerkleProof: []byte("test"),
+		},
+		Vote: []byte("test"),
+	}
+	// expect error when storing the vote, as processID does not exist yet
+	err = sqlite.StoreVotePackage(uint64(123), votePackage)
+	c.Assert(err, qt.Not(qt.IsNil))
+	c.Assert(err.Error(), qt.Equals, "Can not store VotePackage, ProcessID=123 does not exist")
 
 	// store a processID in which the votes will be related
 	processID := uint64(123)

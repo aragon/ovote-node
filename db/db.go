@@ -150,6 +150,8 @@ func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 	sqlReadall := `
 	SELECT * FROM processes	ORDER BY datetime(insertedDatetime) DESC
 	`
+	// TODO maybe, in all affected methods, order by EthBlockNum (creation)
+	// instead of insertedDatetime.
 
 	rows, err := r.db.Query(sqlReadall)
 	if err != nil {
@@ -171,8 +173,8 @@ func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 	return processes, nil
 }
 
-// ReadProcessesByEthEndBlockNum reads all the stored types.Process which
-// contains the given EthEndBlockNum
+// ReadProcessesByEthEndBlockNum reads all the stored processes which contain
+// the given EthEndBlockNum
 func (r *SQLite) ReadProcessesByEthEndBlockNum(ethEndBlockNum uint64) ([]types.Process, error) {
 	sqlReadall := `
 	SELECT * FROM processes WHERE ethEndBlockNum = ?
@@ -180,6 +182,34 @@ func (r *SQLite) ReadProcessesByEthEndBlockNum(ethEndBlockNum uint64) ([]types.P
 	`
 
 	rows, err := r.db.Query(sqlReadall, ethEndBlockNum)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //nolint:errcheck
+
+	var processes []types.Process
+	for rows.Next() {
+		process := types.Process{}
+		err = rows.Scan(&process.ID, &process.Status,
+			&process.CensusRoot, &process.EthBlockNum,
+			&process.EthEndBlockNum, &process.InsertedDatetime)
+		if err != nil {
+			return nil, err
+		}
+		processes = append(processes, process)
+	}
+	return processes, nil
+}
+
+// ReadProcessesByStatus reads all the stored processes which have the given
+// status
+func (r *SQLite) ReadProcessesByStatus(status types.ProcessStatus) ([]types.Process, error) {
+	sqlReadall := `
+	SELECT * FROM processes WHERE status = ?
+	ORDER BY datetime(insertedDatetime) DESC
+	`
+
+	rows, err := r.db.Query(sqlReadall, status)
 	if err != nil {
 		return nil, err
 	}
@@ -223,6 +253,9 @@ func (r *SQLite) StoreVotePackage(processID uint64, vote types.VotePackage) erro
 	_, err = stmt.Exec(vote.CensusProof.Index, vote.CensusProof.PublicKey,
 		vote.CensusProof.MerkleProof, vote.Signature[:], vote.Vote, processID)
 	if err != nil {
+		if err.Error() == "FOREIGN KEY constraint failed" {
+			return fmt.Errorf("Can not store VotePackage, ProcessID=%d does not exist", processID)
+		}
 		return err
 	}
 	return nil

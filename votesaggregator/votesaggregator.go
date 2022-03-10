@@ -2,10 +2,14 @@ package votesaggregator
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/aragon/zkmultisig-node/db"
 	"github.com/aragon/zkmultisig-node/types"
+	"go.vocdoni.io/dvote/log"
 )
+
+const syncSleepTime = 6
 
 // VotesAggregator receives the votes and aggregates them to generate a zkProof
 type VotesAggregator struct {
@@ -15,6 +19,29 @@ type VotesAggregator struct {
 // New returns a VotesAggregator with the given SQLite db
 func New(sqlite *db.SQLite) (*VotesAggregator, error) {
 	return &VotesAggregator{db: sqlite}, nil
+}
+
+// SyncProcesses actively checks if there are any processes closed, to trigger
+// the generation of the zkInputs & zkProof of them. This method is designed to
+// be called in a goroutine
+func (va *VotesAggregator) SyncProcesses() {
+	for {
+		processes, err := va.db.ReadProcessesByStatus(types.ProcessStatusClosed)
+		if err != nil {
+			log.Error(err)
+		}
+		if len(processes) > 0 {
+			process := processes[0]
+			// WIP
+			_ = process
+			// generate zkInputs for the process
+			// wait until prover is ready
+			// send the zkInputs to the prover
+			// zkProof, err := va.proverClient.ComputeProof(zkInputs)
+		}
+
+		time.Sleep(syncSleepTime * time.Second)
+	}
 }
 
 // ProcessInfo returns info about the Process
