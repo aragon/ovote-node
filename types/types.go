@@ -65,7 +65,7 @@ type Process struct {
 	Status ProcessStatus
 }
 
-func (vp *VotePackage) verifySignature() error {
+func (vp *VotePackage) verifySignature(chainID, processID uint64) error { //nolint:golint
 	voteBI := arbo.BytesToBigInt(vp.Vote)
 	sigUncompressed, err := vp.Signature.Decompress()
 	if err != nil {
@@ -96,8 +96,8 @@ func (vp *VotePackage) verifyMerkleProof(root []byte) error {
 }
 
 // Verify checks the signature and merkleproof of the VotePackage
-func (vp *VotePackage) Verify(root []byte) error {
-	if err := vp.verifySignature(); err != nil {
+func (vp *VotePackage) Verify(chainID, processID uint64, root []byte) error {
+	if err := vp.verifySignature(chainID, processID); err != nil {
 		return err
 	}
 	if err := vp.verifyMerkleProof(root); err != nil {

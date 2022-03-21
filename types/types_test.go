@@ -21,7 +21,6 @@ func TestVerifyCensusProof(t *testing.T) {
 		Database:     database,
 		MaxLevels:    MaxLevels,
 		HashFunction: arbo.HashFunctionPoseidon,
-		// ThresholdNLeafs: not specified, use the default
 	}
 	tree, err := arbo.NewTree(arboConfig)
 	c.Assert(err, qt.IsNil)
@@ -55,15 +54,18 @@ func TestVerifyCensusProof(t *testing.T) {
 		Vote: vote,
 	}
 
+	chainID := uint64(3)
+	processID := uint64(123)
+
 	root, err := tree.Root()
 	c.Assert(err, qt.IsNil)
 
-	c.Assert(vp.verifySignature(), qt.IsNil)
+	c.Assert(vp.verifySignature(chainID, processID), qt.IsNil)
 	c.Assert(vp.verifyMerkleProof(root), qt.IsNil)
-	c.Assert(vp.Verify(root), qt.IsNil)
+	c.Assert(vp.Verify(chainID, processID, root), qt.IsNil)
 
 	vp.CensusProof.Index++
-	c.Assert(vp.verifySignature(), qt.IsNil)
+	c.Assert(vp.verifySignature(chainID, processID), qt.IsNil)
 	c.Assert(vp.verifyMerkleProof(root), qt.Not(qt.IsNil))
-	c.Assert(vp.Verify(root), qt.Not(qt.IsNil))
+	c.Assert(vp.Verify(chainID, processID, root), qt.Not(qt.IsNil))
 }

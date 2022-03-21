@@ -262,13 +262,14 @@ func (r *SQLite) StoreVotePackage(processID uint64, vote types.VotePackage) erro
 }
 
 // ReadVotePackagesByProcessID reads all the stored types.VotePackage for the
-// given ProcessID
+// given ProcessID. VotePackages returned are sorted by index parameter, from
+// smaller to bigger.
 func (r *SQLite) ReadVotePackagesByProcessID(processID uint64) ([]types.VotePackage, error) {
 	// TODO add pagination
 	sqlReadall := `
 	SELECT signature, indx, publicKey, merkleproof, vote FROM votepackages
 	WHERE processID = ?
-	ORDER BY datetime(InsertedDatetime) DESC
+	ORDER BY datetime(indx) DESC
 	`
 
 	rows, err := r.db.Query(sqlReadall, processID)

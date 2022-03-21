@@ -2,10 +2,12 @@ package votesaggregator
 
 import (
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/aragon/zkmultisig-node/db"
 	"github.com/aragon/zkmultisig-node/types"
+	"github.com/vocdoni/arbo"
 	"go.vocdoni.io/dvote/log"
 )
 
@@ -53,6 +55,9 @@ func (va *VotesAggregator) ProcessInfo(processID uint64) (*types.Process, error)
 // AddVote adds to the VotesAggregator's db the given vote for the given
 // CensusRoot
 func (va *VotesAggregator) AddVote(processID uint64, votePackage types.VotePackage) error {
+	// for this initial version, only vote values with 0 or 1 are supported
+	// TODO check vote value inside range
+
 	// get the process from the db. It's assumed that if the processID
 	// exists in the db, it exists in the SmartContract
 	process, err := va.db.ReadProcessByID(processID)
@@ -65,10 +70,62 @@ func (va *VotesAggregator) AddVote(processID uint64, votePackage types.VotePacka
 	}
 
 	// check signature (babyjubjub) and MerkleProof
-	if err := votePackage.Verify(process.CensusRoot); err != nil {
+	chainID := uint64(3) //nolint:gomnd // TODO determined by config
+	if err := votePackage.Verify(chainID, processID, process.CensusRoot); err != nil {
 		return err
 	}
 
 	// store VotePackage in the SQL DB for the given CensusRoot
 	return va.db.StoreVotePackage(processID, votePackage)
+}
+
+// GenerateZKInputs will generate the zkInputs for the given processID
+func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, error) {
+	// TMP
+	nMaxVotes, nLevels := 16, 4
+	z := types.NewZKInputs(nMaxVotes, nLevels)
+
+	// TODO: set chainID (determined by config)
+	z.ProcessID = big.NewInt(int64(processID))
+	process, err := va.db.ReadProcessByID(processID)
+	if err != nil {
+		return nil, err
+	}
+	z.EthEndBlockNum = big.NewInt(int64(process.EthEndBlockNum))
+	z.CensusRoot = arbo.BytesToBigInt(process.CensusRoot)
+
+	// get db votes for the processID. It's assumed that the returned
+	// votePackages are sorted by index
+	votes, err := va.db.ReadVotePackagesByProcessID(processID)
+	if err != nil {
+		return nil, err
+	}
+	for i := 0; i < len(votes); i++ {
+		voteBI := arbo.BytesToBigInt(votes[i].Vote)
+		z.Vote[i] = voteBI
+		z.Index[i] = big.NewInt(int64(votes[i].CensusProof.Index))
+
+		z.PkY[i] = votes[i].CensusProof.PublicKey.Y
+		// TODO Sign of pubK.X
+		sig, err := votes[i].Signature.Decompress()
+		if err != nil {
+			// TODO, probably instead of stopping the process, skip
+			// that vote due wrong signature (having in mind, that
+			// if the signature was wrong, should not be allowd to
+			// be stored in the db
+			return nil, err
+		}
+		z.S[i] = sig.S
+		z.R8x[i] = sig.R8.X
+		z.R8y[i] = sig.R8.Y
+		z.Siblings[i], err = z.MerkleProofToZKInputsFormat(votes[i].CensusProof.MerkleProof)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// TODO compute result
+	// TODO compute inputsHash
+
+	return nil, nil
 }
