@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"time"
@@ -30,18 +31,42 @@ var (
 	ProcessStatusFinished ProcessStatus = 3
 )
 
+// ByteArray is a type alias over []byte to implement custom json marshalers in
+// hex
+type ByteArray []byte
+
+// MarshalJSON implements the Marshaler interface for ByteArray types
+func (b ByteArray) MarshalJSON() ([]byte, error) {
+	return json.Marshal(hex.EncodeToString(b))
+}
+
+// UnmarshalJSON implements the Unmarshaler interface for ByteArray types
+func (b *ByteArray) UnmarshalJSON(j []byte) error {
+	var s string
+	err := json.Unmarshal(j, &s)
+	if err != nil {
+		return err
+	}
+	b2, err := hex.DecodeString(s)
+	if err != nil {
+		return err
+	}
+	*b = ByteArray(b2)
+	return nil
+}
+
 // CensusProof contains the proof of a PublicKey in the Census Tree
 type CensusProof struct {
 	Index       uint64             `json:"index"`
 	PublicKey   *babyjub.PublicKey `json:"publicKey"`
-	MerkleProof []byte             `json:"merkleProof"`
+	MerkleProof ByteArray          `json:"merkleProof"`
 }
 
 // VotePackage represents the vote sent by the User
 type VotePackage struct {
 	Signature   babyjub.SignatureComp `json:"signature"`
 	CensusProof CensusProof           `json:"censusProof"`
-	Vote        []byte                `json:"vote"`
+	Vote        ByteArray             `json:"vote"`
 }
 
 // Process represents a voting process
@@ -65,14 +90,32 @@ type Process struct {
 	Status ProcessStatus
 }
 
-func (vp *VotePackage) verifySignature(chainID, processID uint64) error { //nolint:golint
-	voteBI := arbo.BytesToBigInt(vp.Vote)
+// HashVote computes the vote hash following the circuit approach
+func HashVote(chainID, processID uint64, vote []byte) (*big.Int, error) {
+	voteBI := arbo.BytesToBigInt(vote)
+	signedMsg, err := poseidon.Hash([]*big.Int{
+		big.NewInt(int64(chainID)),
+		big.NewInt(int64(processID)),
+		voteBI,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return signedMsg, nil
+}
+
+func (vp *VotePackage) verifySignature(chainID, processID uint64) error {
+	msgToSign, err := HashVote(chainID, processID, vp.Vote)
+	if err != nil {
+		return err
+	}
+
 	sigUncompressed, err := vp.Signature.Decompress()
 	if err != nil {
 		return err
 	}
 	v := vp.CensusProof.PublicKey.VerifyPoseidon(
-		voteBI, sigUncompressed)
+		msgToSign, sigUncompressed)
 	if !v {
 		return fmt.Errorf("signature verification failed")
 	}

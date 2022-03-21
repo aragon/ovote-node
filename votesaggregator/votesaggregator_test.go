@@ -21,7 +21,9 @@ func TestStoreAndReadVotes(t *testing.T) {
 	err = sqlite.Migrate()
 	c.Assert(err, qt.IsNil)
 
-	va, err := New(sqlite)
+	chainID := uint64(3)
+	processID := uint64(123)
+	va, err := New(sqlite, chainID)
 	c.Assert(err, qt.IsNil)
 
 	// prepare the census
@@ -32,10 +34,9 @@ func TestStoreAndReadVotes(t *testing.T) {
 
 	censusRoot, err := testCensus.Census.Root()
 	c.Assert(err, qt.IsNil)
-	votes := test.GenVotes(c, testCensus)
+	votes := test.GenVotes(c, testCensus, chainID, processID)
 
 	// store a process for the test
-	processID := uint64(123)
 	ethBlockNum := uint64(10)
 	ethEndBlockNum := uint64(20)
 	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)

@@ -5,7 +5,6 @@ import (
 	"github.com/aragon/zkmultisig-node/types"
 	qt "github.com/frankban/quicktest"
 	"github.com/iden3/go-iden3-crypto/babyjub"
-	"github.com/vocdoni/arbo"
 	"go.vocdoni.io/dvote/db"
 	"go.vocdoni.io/dvote/db/pebbledb"
 )
@@ -50,12 +49,13 @@ func GenCensus(c *qt.C, keys Keys) *Census {
 }
 
 // GenVotes generate the votes from the given Census
-func GenVotes(c *qt.C, cens *Census) []types.VotePackage {
+func GenVotes(c *qt.C, cens *Census, chainID, processID uint64) []types.VotePackage {
 	var votes []types.VotePackage
 	for i := 0; i < len(cens.Keys.PrivateKeys); i++ {
 		voteBytes := []byte("test")
-		voteBI := arbo.BytesToBigInt(voteBytes)
-		sigUncomp := cens.Keys.PrivateKeys[i].SignPoseidon(voteBI)
+		msgToSign, err := types.HashVote(chainID, processID, voteBytes)
+		c.Assert(err, qt.IsNil)
+		sigUncomp := cens.Keys.PrivateKeys[i].SignPoseidon(msgToSign)
 		sig := sigUncomp.Compress()
 
 		// get merkleproof

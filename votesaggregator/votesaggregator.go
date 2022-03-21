@@ -15,12 +15,13 @@ const syncSleepTime = 6
 
 // VotesAggregator receives the votes and aggregates them to generate a zkProof
 type VotesAggregator struct {
-	db *db.SQLite
+	db      *db.SQLite
+	chainID uint64 // determined by config
 }
 
 // New returns a VotesAggregator with the given SQLite db
-func New(sqlite *db.SQLite) (*VotesAggregator, error) {
-	return &VotesAggregator{db: sqlite}, nil
+func New(sqlite *db.SQLite, chainID uint64) (*VotesAggregator, error) {
+	return &VotesAggregator{db: sqlite, chainID: chainID}, nil
 }
 
 // SyncProcesses actively checks if there are any processes closed, to trigger
@@ -70,8 +71,7 @@ func (va *VotesAggregator) AddVote(processID uint64, votePackage types.VotePacka
 	}
 
 	// check signature (babyjubjub) and MerkleProof
-	chainID := uint64(3) //nolint:gomnd // TODO determined by config
-	if err := votePackage.Verify(chainID, processID, process.CensusRoot); err != nil {
+	if err := votePackage.Verify(va.chainID, processID, process.CensusRoot); err != nil {
 		return err
 	}
 

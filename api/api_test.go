@@ -24,13 +24,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/iden3/go-iden3-crypto/babyjub"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/vocdoni/arbo"
 	kvdb "go.vocdoni.io/dvote/db"
 	"go.vocdoni.io/dvote/db/pebbledb"
 	"go.vocdoni.io/dvote/log"
 )
 
-func newTestAPI(c *qt.C) (API, *db.SQLite) {
+func newTestAPI(c *qt.C, chainID uint64) (API, *db.SQLite) {
 	// create the CensusBuilder
 	opts := kvdb.Options{Path: c.TempDir()}
 	database, err := pebbledb.New(opts)
@@ -47,7 +46,7 @@ func newTestAPI(c *qt.C) (API, *db.SQLite) {
 	err = sqlite.Migrate()
 	c.Assert(err, qt.IsNil)
 
-	va, err := votesaggregator.New(sqlite)
+	va, err := votesaggregator.New(sqlite, chainID)
 	c.Assert(err, qt.IsNil)
 
 	return API{r: r, cb: cb, va: va}, sqlite
@@ -130,6 +129,9 @@ func doPostVote(c *qt.C, a API, processID uint64, vote types.VotePackage) {
 	c.Assert(err, qt.IsNil)
 	w := httptest.NewRecorder()
 	a.r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		fmt.Println("doPostVote Error:", w.Code, w.Body)
+	}
 	c.Assert(w.Code, qt.Equals, http.StatusOK)
 }
 
@@ -150,12 +152,14 @@ func doGetProcess(c *qt.C, a API, processID uint64) types.Process {
 	return process
 }
 
-func prepareVotes(c *qt.C, keys test.Keys, proofs []types.CensusProof) []types.VotePackage {
+func prepareVotes(c *qt.C, chainID, processID uint64, keys test.Keys,
+	proofs []types.CensusProof) []types.VotePackage {
 	var votes []types.VotePackage
 	for i := 0; i < len(keys.PrivateKeys); i++ {
 		voteBytes := []byte("test")
-		voteBI := arbo.BytesToBigInt(voteBytes)
-		sigUncomp := keys.PrivateKeys[i].SignPoseidon(voteBI)
+		msgToSign, err := types.HashVote(chainID, processID, voteBytes)
+		c.Assert(err, qt.IsNil)
+		sigUncomp := keys.PrivateKeys[i].SignPoseidon(msgToSign)
 		sig := sigUncomp.Compress()
 
 		vote := types.VotePackage{
@@ -175,7 +179,8 @@ func prepareVotes(c *qt.C, keys test.Keys, proofs []types.CensusProof) []types.V
 func TestPostNewCensusHandler(t *testing.T) {
 	c := qt.New(t)
 
-	a, _ := newTestAPI(c)
+	chainID := uint64(3)
+	a, _ := newTestAPI(c, chainID)
 	a.r.POST("/census", a.postNewCensus)
 
 	nKeys := 100
@@ -189,7 +194,8 @@ func TestPostNewCensusHandler(t *testing.T) {
 func TestPostAddKeysHandler(t *testing.T) {
 	c := qt.New(t)
 
-	a, _ := newTestAPI(c)
+	chainID := uint64(3)
+	a, _ := newTestAPI(c, chainID)
 	a.r.POST("/census", a.postNewCensus)
 	a.r.POST("/census/:censusid", a.postAddKeys)
 
@@ -208,7 +214,8 @@ func TestPostAddKeysHandler(t *testing.T) {
 func TestPostCloseCensusHandler(t *testing.T) {
 	c := qt.New(t)
 
-	a, _ := newTestAPI(c)
+	chainID := uint64(3)
+	a, _ := newTestAPI(c, chainID)
 	a.r.POST("/census", a.postNewCensus)
 	a.r.POST("/census/:censusid", a.postAddKeys)
 	a.r.POST("/census/:censusid/close", a.postCloseCensus)
@@ -229,7 +236,8 @@ func TestPostCloseCensusHandler(t *testing.T) {
 func TestGetProofHandler(t *testing.T) {
 	c := qt.New(t)
 
-	a, _ := newTestAPI(c)
+	chainID := uint64(3)
+	a, _ := newTestAPI(c, chainID)
 	a.r.POST("/census", a.postNewCensus)
 	a.r.POST("/census/:censusid/close", a.postCloseCensus)
 	a.r.GET("/census/:censusid/merkleproof/:pubkey", a.getMerkleProofHandler)
@@ -260,7 +268,8 @@ func TestGetProofHandler(t *testing.T) {
 func TestGetProcessInfo(t *testing.T) {
 	c := qt.New(t)
 
-	a, sqlite := newTestAPI(c)
+	chainID := uint64(3)
+	a, sqlite := newTestAPI(c, chainID)
 	a.r.GET("/process/:processid", a.getProcess)
 
 	censusRoot := []byte("testroot")
@@ -286,7 +295,8 @@ func TestGetProcessInfo(t *testing.T) {
 func TestBuildCensusAndPostVoteHandler(t *testing.T) {
 	c := qt.New(t)
 
-	a, sqlite := newTestAPI(c)
+	chainID := uint64(3)
+	a, sqlite := newTestAPI(c, chainID)
 	a.r.POST("/census", a.postNewCensus)
 	a.r.POST("/census/:censusid/close", a.postCloseCensus)
 	a.r.GET("/census/:censusid/merkleproof/:pubkey", a.getMerkleProofHandler)
@@ -323,7 +333,7 @@ func TestBuildCensusAndPostVoteHandler(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 
 	// prepare the votes
-	votes := prepareVotes(c, keys, proofs)
+	votes := prepareVotes(c, chainID, processID, keys, proofs)
 	// send the votes
 	for i := 0; i < len(votes); i++ {
 		doPostVote(c, a, processID, votes[i])
@@ -333,7 +343,8 @@ func TestBuildCensusAndPostVoteHandler(t *testing.T) {
 func TestPostVoteHandler(t *testing.T) {
 	c := qt.New(t)
 
-	a, sqlite := newTestAPI(c)
+	chainID := uint64(3)
+	a, sqlite := newTestAPI(c, chainID)
 	a.r.POST("/process/:processid", a.postVote)
 	a.r.GET("/process/:processid", a.getProcess)
 
@@ -349,11 +360,11 @@ func TestPostVoteHandler(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 
 	// prepare the votes
-	votes := test.GenVotes(c, cens)
+	processID := uint64(123)
+	votes := test.GenVotes(c, cens, chainID, processID)
 
 	// simulate SmartContract Process creation, by adding the CensusRoot in
 	// the votesaggregator db
-	processID := uint64(123)
 	ethBlockNum := uint64(10)
 	ethEndBlockNum := uint64(20)
 	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
