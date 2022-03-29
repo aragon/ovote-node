@@ -1,14 +1,17 @@
 package main
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 
 	"github.com/aragon/zkmultisig-node/api"
 	"github.com/aragon/zkmultisig-node/censusbuilder"
+	"github.com/aragon/zkmultisig-node/db"
 	"github.com/aragon/zkmultisig-node/votesaggregator"
+	_ "github.com/mattn/go-sqlite3"
 	flag "github.com/spf13/pflag"
-	"go.vocdoni.io/dvote/db"
+	kvdb "go.vocdoni.io/dvote/db"
 	"go.vocdoni.io/dvote/db/pebbledb"
 	"go.vocdoni.io/dvote/log"
 )
@@ -16,6 +19,7 @@ import (
 // Config contains the main configuration parameters of the node
 type Config struct {
 	dir, logLevel, port            string
+	chainID                        uint64
 	censusBuilder, votesAggregator bool
 }
 
@@ -30,6 +34,7 @@ func main() {
 		"storage data directory")
 	flag.StringVarP(&config.logLevel, "logLevel", "l", "info", "log level (info, debug, warn, error)")
 	flag.StringVarP(&config.port, "port", "p", "8080", "network port for the HTTP API")
+	flag.Uint64Var(&config.chainID, "chainid", 42, "ChainID")
 	flag.BoolVarP(&config.censusBuilder, "censusbuilder", "c", false, "CensusBuilder active")
 	flag.BoolVarP(&config.votesAggregator, "votesaggregator", "v", false, "VotesAggregator active")
 	// TODO add flag for configurable threshold of minimum census size (to prevent small censuses)
@@ -44,7 +49,7 @@ func main() {
 	var censusBuilder *censusbuilder.CensusBuilder
 	var votesAggregator *votesaggregator.VotesAggregator
 	if config.censusBuilder {
-		opts := db.Options{Path: filepath.Join(config.dir, "censusbuilder")}
+		opts := kvdb.Options{Path: filepath.Join(config.dir, "censusbuilder")}
 		database, err := pebbledb.New(opts)
 		if err != nil {
 			log.Fatal(err)
@@ -56,7 +61,15 @@ func main() {
 		}
 	}
 	if config.votesAggregator {
-		log.Fatal("VotesAggregator not available yet")
+		sqlDB, err := sql.Open("sqlite3", filepath.Join(config.dir, "testdb.sqlite3"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		sqlite := db.NewSQLite(sqlDB)
+		votesAggregator, err = votesaggregator.New(sqlite, config.chainID)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	a, err := api.New(censusBuilder, votesAggregator)
