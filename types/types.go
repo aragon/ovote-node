@@ -76,6 +76,9 @@ type Process struct {
 	// CensusRoot is determined by the SmartContract, the same CensusRoot
 	// can be reused by different Processes
 	CensusRoot []byte
+	// CensusSize determines the number of public keys placed in the
+	// CensusTree leaves under the CensusRoot
+	CensusSize uint64
 	// EthBlockNum indicates at which Ethereum block number the process has
 	// been created
 	EthBlockNum uint64
@@ -83,6 +86,12 @@ type Process struct {
 	// EthBlockNum where the process ends, in which the results can be
 	// published
 	EthEndBlockNum uint64
+	// MinParticipation sets a threshold of minimum number of votes over
+	// the total users in the census (% over CensusSize)
+	MinParticipation uint8
+	// MinPositiveVotes sets a threshold of minimum votes supporting the
+	// proposal, over all the processed votes (% over nVotes)
+	MinPositiveVotes uint8
 	// InsertedDatetime contains the datetime of when the process was
 	// inserted in the db
 	InsertedDatetime time.Time

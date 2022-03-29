@@ -24,14 +24,20 @@ func TestAdvanceBlock(t *testing.T) {
 	// WIP
 	events := make(map[uint64][]TestEvent)
 	events[1001] = []TestEvent{{
-		ProcessID:      1,
-		CensusRoot:     []byte("root"),
-		EthEndBlockNum: 1010,
+		ProcessID:        1,
+		CensusRoot:       []byte("root"),
+		CensusSize:       100,
+		EthEndBlockNum:   1010,
+		MinParticipation: 20,
+		MinPositiveVotes: 60,
 	}}
 	events[1002] = []TestEvent{{
-		ProcessID:      2,
-		CensusRoot:     []byte("root"),
-		EthEndBlockNum: 1011,
+		ProcessID:        2,
+		CensusRoot:       []byte("root"),
+		CensusSize:       100,
+		EthEndBlockNum:   1011,
+		MinParticipation: 20,
+		MinPositiveVotes: 60,
 	}}
 	eth := NewTestEthClient(sqlite, 1000, events)
 
@@ -56,11 +62,17 @@ func TestAdvanceBlock(t *testing.T) {
 	// check that the obtained processes match the introduced values
 	c.Assert(processes[0].ID, qt.Equals, events[1001][0].ProcessID)
 	c.Assert(processes[0].CensusRoot, qt.DeepEquals, events[1001][0].CensusRoot)
+	c.Assert(processes[0].CensusSize, qt.DeepEquals, events[1001][0].CensusSize)
 	c.Assert(processes[0].EthEndBlockNum, qt.Equals, events[1001][0].EthEndBlockNum)
+	c.Assert(processes[0].MinParticipation, qt.Equals, events[1001][0].MinParticipation)
+	c.Assert(processes[0].MinPositiveVotes, qt.Equals, events[1001][0].MinPositiveVotes)
 	c.Assert(processes[0].Status, qt.Equals, types.ProcessStatusOn)
 	c.Assert(processes[1].ID, qt.Equals, events[1002][0].ProcessID)
 	c.Assert(processes[1].CensusRoot, qt.DeepEquals, events[1002][0].CensusRoot)
+	c.Assert(processes[1].CensusSize, qt.DeepEquals, events[1002][0].CensusSize)
 	c.Assert(processes[1].EthEndBlockNum, qt.Equals, events[1002][0].EthEndBlockNum)
+	c.Assert(processes[1].MinParticipation, qt.Equals, events[1002][0].MinParticipation)
+	c.Assert(processes[1].MinPositiveVotes, qt.Equals, events[1002][0].MinPositiveVotes)
 	c.Assert(processes[1].Status, qt.Equals, types.ProcessStatusOn)
 
 	// advance until block 1010, to check that process 0 Status has been updated

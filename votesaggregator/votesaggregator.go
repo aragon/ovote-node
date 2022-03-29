@@ -29,6 +29,7 @@ func New(sqlite *db.SQLite, chainID uint64) (*VotesAggregator, error) {
 // be called in a goroutine
 func (va *VotesAggregator) SyncProcesses() {
 	for {
+		// if there are Closed processes, generate their zkProofs
 		processes, err := va.db.ReadProcessesByStatus(types.ProcessStatusClosed)
 		if err != nil {
 			log.Error(err)
@@ -41,6 +42,7 @@ func (va *VotesAggregator) SyncProcesses() {
 			// wait until prover is ready
 			// send the zkInputs to the prover
 			// zkProof, err := va.proverClient.ComputeProof(zkInputs)
+			// update ProcessStatus to types.ProcessStatusFinished
 		}
 
 		time.Sleep(syncSleepTime * time.Second)
@@ -111,7 +113,7 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, 
 		if err != nil {
 			// TODO, probably instead of stopping the process, skip
 			// that vote due wrong signature (having in mind, that
-			// if the signature was wrong, should not be allowd to
+			// if the signature was wrong, should not be allowed to
 			// be stored in the db
 			return nil, err
 		}

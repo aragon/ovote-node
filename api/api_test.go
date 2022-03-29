@@ -272,14 +272,17 @@ func TestGetProcessInfo(t *testing.T) {
 	a, sqlite := newTestAPI(c, chainID)
 	a.r.GET("/process/:processid", a.getProcess)
 
-	censusRoot := []byte("testroot")
-
 	// simulate SmartContract Process creation, by adding the CensusRoot in
 	// the votesaggregator db
 	processID := uint64(123)
+	censusRoot := []byte("testroot")
+	censusSize := uint64(100)
 	ethBlockNum := uint64(10)
 	ethEndBlockNum := uint64(20)
-	err := sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
+	minParticipation := uint8(20)
+	minPositiveVotes := uint8(60)
+	err := sqlite.StoreProcess(processID, censusRoot, censusSize,
+		ethBlockNum, ethEndBlockNum, minParticipation, minPositiveVotes)
 	c.Assert(err, qt.IsNil)
 
 	process := doGetProcess(c, a, processID)
@@ -313,6 +316,7 @@ func TestBuildCensusAndPostVoteHandler(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	censusRoot := doPostCloseCensus(c, a, censusID)
+	censusSize := uint64(len(keys.PublicKeys))
 
 	var proofs []types.CensusProof
 	for i := 0; i < nKeys; i++ {
@@ -329,7 +333,10 @@ func TestBuildCensusAndPostVoteHandler(t *testing.T) {
 	processID := uint64(123)
 	ethBlockNum := uint64(10)
 	ethEndBlockNum := uint64(20)
-	err := sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
+	minParticipation := uint8(20)
+	minPositiveVotes := uint8(60)
+	err := sqlite.StoreProcess(processID, censusRoot, censusSize,
+		ethBlockNum, ethEndBlockNum, minParticipation, minPositiveVotes)
 	c.Assert(err, qt.IsNil)
 
 	// prepare the votes
@@ -358,6 +365,7 @@ func TestPostVoteHandler(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	censusRoot, err := cens.Census.Root()
 	c.Assert(err, qt.IsNil)
+	censusSize := uint64(nKeys)
 
 	// prepare the votes
 	processID := uint64(123)
@@ -367,7 +375,10 @@ func TestPostVoteHandler(t *testing.T) {
 	// the votesaggregator db
 	ethBlockNum := uint64(10)
 	ethEndBlockNum := uint64(20)
-	err = sqlite.StoreProcess(processID, censusRoot, ethBlockNum, ethEndBlockNum)
+	minParticipation := uint8(20)
+	minPositiveVotes := uint8(60)
+	err = sqlite.StoreProcess(processID, censusRoot, censusSize,
+		ethBlockNum, ethEndBlockNum, minParticipation, minPositiveVotes)
 	c.Assert(err, qt.IsNil)
 
 	// check that getting the process status by the API returns status=On

@@ -17,9 +17,12 @@ type TestEthClient struct {
 
 // TestEvent is used to simulate creation of new processes in the SmartContract
 type TestEvent struct {
-	ProcessID      uint64
-	CensusRoot     []byte
-	EthEndBlockNum uint64
+	ProcessID        uint64
+	CensusRoot       []byte
+	CensusSize       uint64
+	EthEndBlockNum   uint64
+	MinParticipation uint8
+	MinPositiveVotes uint8
 }
 
 // NewTestEthClient returns a new TestEthClient with the given configuration
@@ -36,8 +39,10 @@ func (e *TestEthClient) AdvanceBlock() error {
 		// simulate event from the SmartContract, and store the process
 		// into the db
 		for i := 0; i < len(events); i++ {
-			err := e.db.StoreProcess(events[i].ProcessID, events[i].CensusRoot,
-				e.currentBlock, events[i].EthEndBlockNum)
+			err := e.db.StoreProcess(events[i].ProcessID,
+				events[i].CensusRoot, events[i].CensusSize,
+				e.currentBlock, events[i].EthEndBlockNum,
+				events[i].MinParticipation, events[i].MinPositiveVotes)
 			if err != nil {
 				return err
 			}
