@@ -38,6 +38,7 @@ func (r *SQLite) Migrate() error {
 		censusSize INTEGER NOT NULL,
 		ethBlockNum INTEGER NOT NULL,
 		ethEndBlockNum INTEGER NOT NULL,
+		resultsPublishingWindow INTEGER NOT NULL,
 		minParticipation INTEGER NOT NULL,
 		minPositiveVotes INTEGER NOT NULL,
 		insertedDatetime DATETIME
@@ -72,7 +73,8 @@ func (r *SQLite) Migrate() error {
 // ethBlockNum. When a new process is stored, it's assumed that it comes from
 // the SmartContract, and its status is set to types.ProcessStatusOn
 func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
-	ethBlockNum, ethEndBlockNum uint64, minParticipation, minPositiveVotes uint8) error {
+	ethBlockNum, ethEndBlockNum, resultsPublishingWindow uint64, minParticipation,
+	minPositiveVotes uint8) error {
 	sqlAddvote := `
 	INSERT INTO processes(
 		id,
@@ -81,10 +83,11 @@ func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
 		censusSize,
 		ethBlockNum,
 		ethEndBlockNum,
+		resultsPublishingWindow,
 		minParticipation,
 		minPositiveVotes,
 		insertedDatetime
-	) values(?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+	) values(?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`
 
 	stmt, err := r.db.Prepare(sqlAddvote)
@@ -94,7 +97,8 @@ func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
 	defer stmt.Close() //nolint:errcheck
 
 	_, err = stmt.Exec(id, types.ProcessStatusOn, censusRoot, censusSize,
-		ethBlockNum, ethEndBlockNum, minParticipation, minPositiveVotes)
+		ethBlockNum, ethEndBlockNum, resultsPublishingWindow, minParticipation,
+		minPositiveVotes)
 	if err != nil {
 		return err
 	}
@@ -143,8 +147,8 @@ func (r *SQLite) ReadProcessByID(id uint64) (*types.Process, error) {
 	var process types.Process
 	err := row.Scan(&process.ID, &process.Status, &process.CensusRoot,
 		&process.CensusSize, &process.EthBlockNum, &process.EthEndBlockNum,
-		&process.MinParticipation, &process.MinPositiveVotes,
-		&process.InsertedDatetime)
+		&process.ResultsPublishingWindow, &process.MinParticipation,
+		&process.MinPositiveVotes, &process.InsertedDatetime)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("Process ID:%d, does not exist in the db", id)
@@ -173,8 +177,9 @@ func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 		process := types.Process{}
 		err = rows.Scan(&process.ID, &process.Status,
 			&process.CensusRoot, &process.CensusSize, &process.EthBlockNum,
-			&process.EthEndBlockNum, &process.MinParticipation,
-			&process.MinPositiveVotes, &process.InsertedDatetime)
+			&process.EthEndBlockNum, &process.ResultsPublishingWindow,
+			&process.MinParticipation, &process.MinPositiveVotes,
+			&process.InsertedDatetime)
 		if err != nil {
 			return nil, err
 		}
@@ -202,8 +207,9 @@ func (r *SQLite) ReadProcessesByEthEndBlockNum(ethEndBlockNum uint64) ([]types.P
 		process := types.Process{}
 		err = rows.Scan(&process.ID, &process.Status,
 			&process.CensusRoot, &process.CensusSize, &process.EthBlockNum,
-			&process.EthEndBlockNum, &process.MinParticipation,
-			&process.MinPositiveVotes, &process.InsertedDatetime)
+			&process.EthEndBlockNum, &process.ResultsPublishingWindow,
+			&process.MinParticipation, &process.MinPositiveVotes,
+			&process.InsertedDatetime)
 		if err != nil {
 			return nil, err
 		}
@@ -231,8 +237,9 @@ func (r *SQLite) ReadProcessesByStatus(status types.ProcessStatus) ([]types.Proc
 		process := types.Process{}
 		err = rows.Scan(&process.ID, &process.Status,
 			&process.CensusRoot, &process.CensusSize, &process.EthBlockNum,
-			&process.EthEndBlockNum, &process.MinParticipation,
-			&process.MinPositiveVotes, &process.InsertedDatetime)
+			&process.EthEndBlockNum, &process.ResultsPublishingWindow,
+			&process.MinParticipation, &process.MinPositiveVotes,
+			&process.InsertedDatetime)
 		if err != nil {
 			return nil, err
 		}

@@ -23,14 +23,13 @@ type ZKInputs struct {
 	EthEndBlockNum *big.Int `json:"ethEndBlockNum"`
 	CensusRoot     *big.Int `json:"censusRoot"`
 	Result         *big.Int `json:"result"`
-	InputsHash     *big.Int `json:"inputsHash"`
 
 	/////
 	// private inputs
 	Vote []*big.Int `json:"vote"`
 	// user's key related
 	Index []*big.Int `json:"index"`
-	Sign  []*big.Int `json:"sign"`
+	PkX   []*big.Int `json:"pkX"`
 	PkY   []*big.Int `json:"pkY"`
 	// signatures
 	S   []*big.Int `json:"s"`
@@ -51,10 +50,10 @@ func NewZKInputs(nMaxVotes, nLevels int) *ZKInputs {
 	z.EthEndBlockNum = big.NewInt(0)
 	z.CensusRoot = big.NewInt(0)
 	z.Result = big.NewInt(0)
-	z.InputsHash = big.NewInt(0)
 
 	z.Vote = emptyBISlice(nMaxVotes)
 	z.Index = emptyBISlice(nMaxVotes)
+	z.PkX = emptyBISlice(nMaxVotes)
 	z.PkY = emptyBISlice(nMaxVotes)
 	z.S = emptyBISlice(nMaxVotes)
 	z.R8x = emptyBISlice(nMaxVotes)
@@ -96,10 +95,4 @@ func (z *ZKInputs) MerkleProofToZKInputsFormat(p []byte) ([]*big.Int, error) {
 	}
 
 	return b, nil
-}
-
-// ComputeInputsHash computes the InputsHash from the private inputs that will
-// be checked inside the circuit
-func (z *ZKInputs) ComputeInputsHash() (*big.Int, error) {
-	return nil, nil
 }

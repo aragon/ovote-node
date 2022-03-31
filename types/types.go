@@ -73,8 +73,8 @@ type VotePackage struct {
 type Process struct {
 	// ID is determined by the SmartContract, is unique for each Process
 	ID uint64
-	// CensusRoot is determined by the SmartContract, the same CensusRoot
-	// can be reused by different Processes
+	// CensusRoot indicates the CensusRoot of the Process, the same
+	// CensusRoot can be reused by different Processes
 	CensusRoot []byte
 	// CensusSize determines the number of public keys placed in the
 	// CensusTree leaves under the CensusRoot
@@ -82,10 +82,14 @@ type Process struct {
 	// EthBlockNum indicates at which Ethereum block number the process has
 	// been created
 	EthBlockNum uint64
-	// EthEndBlockNum is determined by the SmartContract, indicates the
-	// EthBlockNum where the process ends, in which the results can be
-	// published
+	// EthEndBlockNum indicates the EthBlockNum where the process ends, in
+	// which the results can be published
 	EthEndBlockNum uint64
+	// ResultsPublishingWindow indicates the window of time (blocks), which
+	// starts at the EthEndBlockNum and ends at
+	// EthEndBlockNum+ResultsPublishingWindow.  During this window of time,
+	// the results + zkProofs can be sent to the SmartContract.
+	ResultsPublishingWindow uint64
 	// MinParticipation sets a threshold of minimum number of votes over
 	// the total users in the census (% over CensusSize)
 	MinParticipation uint8

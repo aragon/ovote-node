@@ -40,10 +40,12 @@ func TestStoreAndReadVotes(t *testing.T) {
 	// store a process for the test
 	ethBlockNum := uint64(10)
 	ethEndBlockNum := uint64(20)
+	resultsPublishingWindow := uint64(20)
 	minParticipation := uint8(20)
 	minPositiveVotes := uint8(60)
 	err = sqlite.StoreProcess(processID, censusRoot, censusSize,
-		ethBlockNum, ethEndBlockNum, minParticipation, minPositiveVotes)
+		ethBlockNum, ethEndBlockNum, resultsPublishingWindow, minParticipation,
+		minPositiveVotes)
 	c.Assert(err, qt.IsNil)
 
 	for i := 0; i < len(votes); i++ {

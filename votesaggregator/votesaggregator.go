@@ -107,8 +107,8 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, 
 		z.Vote[i] = voteBI
 		z.Index[i] = big.NewInt(int64(votes[i].CensusProof.Index))
 
+		z.PkX[i] = votes[i].CensusProof.PublicKey.X
 		z.PkY[i] = votes[i].CensusProof.PublicKey.Y
-		// TODO Sign of pubK.X
 		sig, err := votes[i].Signature.Decompress()
 		if err != nil {
 			// TODO, probably instead of stopping the process, skip
@@ -127,7 +127,6 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, 
 	}
 
 	// TODO compute result
-	// TODO compute inputsHash
 
 	return nil, nil
 }
