@@ -3,8 +3,12 @@ package types
 import (
 	"fmt"
 	"math/big"
+	"os"
 
 	"github.com/vocdoni/arbo"
+	kvdb "go.vocdoni.io/dvote/db"
+	"go.vocdoni.io/dvote/db/pebbledb"
+	"go.vocdoni.io/dvote/log"
 )
 
 // ZKCircuitMeta contains metadata related to the circuit configuration
@@ -18,11 +22,11 @@ type ZKInputs struct {
 	Meta ZKCircuitMeta `json:"-"`
 
 	// public inputs
-	ChainID    *big.Int `json:"chainID"`
-	ProcessID  *big.Int `json:"processID"`
-	CensusRoot *big.Int `json:"censusRoot"`
-	ReciptRoot *big.Int `json:"reciptRoot"`
-	Result     *big.Int `json:"result"`
+	ChainID      *big.Int `json:"chainID"`
+	ProcessID    *big.Int `json:"processID"`
+	CensusRoot   *big.Int `json:"censusRoot"`
+	ReceiptsRoot *big.Int `json:"receiptsRoot"`
+	Result       *big.Int `json:"result"`
 
 	/////
 	// private inputs
@@ -36,8 +40,8 @@ type ZKInputs struct {
 	R8x []*big.Int `json:"r8x"`
 	R8y []*big.Int `json:"r8y"`
 	// census proofs
-	Siblings       [][]*big.Int `json:"siblings"`
-	ReciptSiblings [][]*big.Int `json:"reciptSiblings"`
+	Siblings         [][]*big.Int `json:"siblings"`
+	ReceiptsSiblings [][]*big.Int `json:"receiptsSiblings"`
 }
 
 // NewZKInputs returns an initialized ZKInputs struct
@@ -49,7 +53,7 @@ func NewZKInputs(nMaxVotes, nLevels int) *ZKInputs {
 	z.ChainID = big.NewInt(0)
 	z.ProcessID = big.NewInt(0)
 	z.CensusRoot = big.NewInt(0)
-	z.ReciptRoot = big.NewInt(0)
+	z.ReceiptsRoot = big.NewInt(0)
 	z.Result = big.NewInt(0)
 
 	z.Vote = emptyBISlice(nMaxVotes)
@@ -63,9 +67,9 @@ func NewZKInputs(nMaxVotes, nLevels int) *ZKInputs {
 	for i := 0; i < nMaxVotes; i++ {
 		z.Siblings[i] = emptyBISlice(nLevels)
 	}
-	z.ReciptSiblings = make([][]*big.Int, nMaxVotes)
+	z.ReceiptsSiblings = make([][]*big.Int, nMaxVotes)
 	for i := 0; i < nMaxVotes; i++ {
-		z.ReciptSiblings[i] = emptyBISlice(nLevels)
+		z.ReceiptsSiblings[i] = emptyBISlice(nLevels)
 	}
 
 	return z
@@ -100,4 +104,59 @@ func (z *ZKInputs) MerkleProofToZKInputsFormat(p []byte) ([]*big.Int, error) {
 	}
 
 	return b, nil
+}
+
+// ComputeReceipts builds a temp MerkleTree with all the given index &
+// publicKeys (receiptsKeys & receiptsValues), to then compute the siblings of
+// each recipt, adding the siblings & root of the receipts tree to
+// ZKInputs.ReceiptsRoot & ZKInputs.ReceiptsSiblings.
+func (z *ZKInputs) ComputeReceipts(receiptsKeys, receiptsValues [][]byte) error {
+	// prepare receiptsTree
+	dbPebble, err := pebbledb.New(kvdb.Options{Path: os.TempDir()})
+	if err != nil {
+		return err
+	}
+	receiptsTreeConfig := arbo.Config{
+		Database:     dbPebble,
+		MaxLevels:    z.Meta.NLevels,
+		HashFunction: arbo.HashFunctionPoseidon,
+	}
+	receiptsTree, err := arbo.NewTree(receiptsTreeConfig)
+	if err != nil {
+		return err
+	}
+
+	// build the receiptsTree
+	invalids, err := receiptsTree.AddBatch(receiptsKeys, receiptsValues)
+	if err != nil {
+		return err
+	}
+	if len(invalids) != 0 {
+		return fmt.Errorf("Can not add %d PublicKeys to the receiptsTree", len(invalids))
+	}
+
+	// get the z.ReceiptsRoot
+	receiptsRoot, err := receiptsTree.Root()
+	if err != nil {
+		return err
+	}
+	z.ReceiptsRoot = arbo.BytesToBigInt(receiptsRoot)
+
+	// compute the z.ReceiptsSiblings
+	for i := 0; i < len(receiptsKeys); i++ {
+		_, _, receiptSiblings, existence, err := receiptsTree.GenProof(receiptsKeys[i])
+		if err != nil {
+			return err
+		}
+		if !existence {
+			log.Error("should not happen")
+			return fmt.Errorf("publicKey does not exist in the receiptsTree (%x)", receiptsValues[:])
+		}
+		z.ReceiptsSiblings[i], err = z.MerkleProofToZKInputsFormat(receiptSiblings)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

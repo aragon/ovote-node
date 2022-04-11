@@ -162,6 +162,7 @@ func (vp *VotePackage) Verify(chainID, processID uint64, root []byte) error {
 	if err := vp.verifyMerkleProof(root); err != nil {
 		return err
 	}
+	// TODO ensure that vote value is 0 or 1
 	return nil
 }
 

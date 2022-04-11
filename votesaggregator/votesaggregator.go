@@ -83,7 +83,7 @@ func (va *VotesAggregator) AddVote(processID uint64, votePackage types.VotePacka
 
 // GenerateZKInputs will generate the zkInputs for the given processID
 func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, error) {
-	// TMP
+	// TODO TMP
 	nMaxVotes, nLevels := 16, 4
 	z := types.NewZKInputs(nMaxVotes, nLevels)
 
@@ -94,6 +94,9 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, 
 		return nil, err
 	}
 	z.CensusRoot = arbo.BytesToBigInt(process.CensusRoot)
+
+	var receiptsKeys [][]byte
+	var receiptsValues [][]byte
 
 	// get db votes for the processID. It's assumed that the returned
 	// votePackages are sorted by index
@@ -123,7 +126,20 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, 
 		if err != nil {
 			return nil, err
 		}
-		// TODO add z.ReciptRoot & z.ReciptSiblings
+
+		// prepare the receipt data with the index & pubK
+		receiptsKeys = append(receiptsKeys, types.Uint64ToIndex(votes[i].CensusProof.Index))
+		pubKHashBytes, err := types.HashPubKBytes(votes[i].CensusProof.PublicKey)
+		if err != nil {
+			return nil, err
+		}
+		receiptsValues = append(receiptsValues, pubKHashBytes[:])
+	}
+
+	// compute the z.ReceiptsRoot & zk.ReceiptsSiblings
+	err = z.ComputeReceipts(receiptsKeys, receiptsValues)
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO compute result
