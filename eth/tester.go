@@ -34,9 +34,9 @@ func (e *TestEthClient) AdvanceBlock() error {
 		for i := 0; i < len(events); i++ {
 			err := e.db.StoreProcess(events[i].ID,
 				events[i].CensusRoot, events[i].CensusSize,
-				e.currentBlock, events[i].EthEndBlockNum,
-				events[i].ResultsPublishingWindow,
-				events[i].MinParticipation, events[i].MinPositiveVotes)
+				e.currentBlock, events[i].ResPubStartBlock,
+				events[i].ResPubWindow, events[i].MinParticipation,
+				events[i].MinPositiveVotes)
 			if err != nil {
 				return err
 			}
@@ -45,12 +45,12 @@ func (e *TestEthClient) AdvanceBlock() error {
 
 	// TODO better to do this in a single SQL query (get & update)
 	// get processes that end at this block and update their status
-	processes, err := e.db.ReadProcessesByEthEndBlockNum(e.currentBlock)
+	processes, err := e.db.ReadProcessesByResPubStartBlock(e.currentBlock)
 	if err != nil {
 		return err
 	}
 	for i := 0; i < len(processes); i++ {
-		err = e.db.UpdateProcessStatus(processes[i].ID, types.ProcessStatusClosed)
+		err = e.db.UpdateProcessStatus(processes[i].ID, types.ProcessStatusFrozen)
 		if err != nil {
 			return err
 		}

@@ -29,8 +29,8 @@ func New(sqlite *db.SQLite, chainID uint64) (*VotesAggregator, error) {
 // be called in a goroutine
 func (va *VotesAggregator) SyncProcesses() {
 	for {
-		// if there are Closed processes, generate their zkProofs
-		processes, err := va.db.ReadProcessesByStatus(types.ProcessStatusClosed)
+		// if there are Frozen processes, generate their zkProofs
+		processes, err := va.db.ReadProcessesByStatus(types.ProcessStatusFrozen)
 		if err != nil {
 			log.Error(err)
 		}
@@ -68,8 +68,8 @@ func (va *VotesAggregator) AddVote(processID uint64, votePackage types.VotePacka
 		return err
 	}
 	if process.Status != types.ProcessStatusOn {
-		return fmt.Errorf("process EthEndBlockNum (%d) reached, votes"+
-			" can not be added", process.EthEndBlockNum)
+		return fmt.Errorf("process ResPubStartBlock (%d) reached,"+
+			" votes can not be added", process.ResPubStartBlock)
 	}
 
 	// check signature (babyjubjub) and MerkleProof
@@ -93,7 +93,6 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, 
 	if err != nil {
 		return nil, err
 	}
-	z.EthEndBlockNum = big.NewInt(int64(process.EthEndBlockNum))
 	z.CensusRoot = arbo.BytesToBigInt(process.CensusRoot)
 
 	// get db votes for the processID. It's assumed that the returned
@@ -124,6 +123,7 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, 
 		if err != nil {
 			return nil, err
 		}
+		// TODO add z.ReciptRoot & z.ReciptSiblings
 	}
 
 	// TODO compute result

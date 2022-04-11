@@ -18,17 +18,19 @@ type ProcessStatus int
 var (
 	hashLen int = arbo.HashFunctionPoseidon.Len()
 
-	// ProcessStatusOn indicates that the process is accepting vote
+	// ProcessStatusOn indicates that the process is accepting vote (Voting
+	// phase)
 	ProcessStatusOn ProcessStatus = 0
-	// ProcessStatusClosed indicates that the process is no longer
-	// accepting new votes, but the zkProof is still not generated
-	ProcessStatusClosed ProcessStatus = 1
-	// ProcessStatusProofGen indicates that the process is no longer
+	// ProcessStatusFrozen indicates that the process is in
+	// ResultsPublishingPhase and is no longer accepting new votes, the
+	// proof can now be generated
+	ProcessStatusFrozen ProcessStatus = 1
+	// ProcessStatusProofGenerating indicates that the process is no longer
 	// accepting new votes and the zkProof is being generated
-	ProcessStatusProofGen ProcessStatus = 2
-	// ProcessStatusFinished indicates that the process is finished, and
-	// the zkProof is already generated
-	ProcessStatusFinished ProcessStatus = 3
+	ProcessStatusProofGenerating ProcessStatus = 2
+	// ProcessStatusProofGenerated indicates that the process is finished,
+	// and the zkProof is already generated
+	ProcessStatusProofGenerated ProcessStatus = 3
 )
 
 // ByteArray is a type alias over []byte to implement custom json marshalers in
@@ -82,14 +84,15 @@ type Process struct {
 	// EthBlockNum indicates at which Ethereum block number the process has
 	// been created
 	EthBlockNum uint64
-	// EthEndBlockNum indicates the EthBlockNum where the process ends, in
-	// which the results can be published
-	EthEndBlockNum uint64
-	// ResultsPublishingWindow indicates the window of time (blocks), which
-	// starts at the EthEndBlockNum and ends at
-	// EthEndBlockNum+ResultsPublishingWindow.  During this window of time,
-	// the results + zkProofs can be sent to the SmartContract.
-	ResultsPublishingWindow uint64
+	// ResPubStartBlock (Results Publishing Start Block) indicates the
+	// EthBlockNum where the process ends, in which the results can be
+	// published
+	ResPubStartBlock uint64
+	// ResPubWindow (Results Publishing Window) indicates the window of
+	// time (blocks), which starts at the ResPubStartBlock and ends at
+	// ResPubStartBlock+ResPubWindow.  During this window of time, the
+	// results + zkProofs can be sent to the SmartContract.
+	ResPubWindow uint64
 	// MinParticipation sets a threshold of minimum number of votes over
 	// the total users in the census (% over CensusSize)
 	MinParticipation uint8

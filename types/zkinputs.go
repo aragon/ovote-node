@@ -18,11 +18,11 @@ type ZKInputs struct {
 	Meta ZKCircuitMeta `json:"-"`
 
 	// public inputs
-	ChainID        *big.Int `json:"chainID"`
-	ProcessID      *big.Int `json:"processID"`
-	EthEndBlockNum *big.Int `json:"ethEndBlockNum"`
-	CensusRoot     *big.Int `json:"censusRoot"`
-	Result         *big.Int `json:"result"`
+	ChainID    *big.Int `json:"chainID"`
+	ProcessID  *big.Int `json:"processID"`
+	CensusRoot *big.Int `json:"censusRoot"`
+	ReciptRoot *big.Int `json:"reciptRoot"`
+	Result     *big.Int `json:"result"`
 
 	/////
 	// private inputs
@@ -36,7 +36,8 @@ type ZKInputs struct {
 	R8x []*big.Int `json:"r8x"`
 	R8y []*big.Int `json:"r8y"`
 	// census proofs
-	Siblings [][]*big.Int `json:"siblings"`
+	Siblings       [][]*big.Int `json:"siblings"`
+	ReciptSiblings [][]*big.Int `json:"reciptSiblings"`
 }
 
 // NewZKInputs returns an initialized ZKInputs struct
@@ -47,8 +48,8 @@ func NewZKInputs(nMaxVotes, nLevels int) *ZKInputs {
 
 	z.ChainID = big.NewInt(0)
 	z.ProcessID = big.NewInt(0)
-	z.EthEndBlockNum = big.NewInt(0)
 	z.CensusRoot = big.NewInt(0)
+	z.ReciptRoot = big.NewInt(0)
 	z.Result = big.NewInt(0)
 
 	z.Vote = emptyBISlice(nMaxVotes)
@@ -61,6 +62,10 @@ func NewZKInputs(nMaxVotes, nLevels int) *ZKInputs {
 	z.Siblings = make([][]*big.Int, nMaxVotes)
 	for i := 0; i < nMaxVotes; i++ {
 		z.Siblings[i] = emptyBISlice(nLevels)
+	}
+	z.ReciptSiblings = make([][]*big.Int, nMaxVotes)
+	for i := 0; i < nMaxVotes; i++ {
+		z.ReciptSiblings[i] = emptyBISlice(nLevels)
 	}
 
 	return z

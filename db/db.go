@@ -37,8 +37,8 @@ func (r *SQLite) Migrate() error {
 		censusRoot BLOB NOT NULL,
 		censusSize INTEGER NOT NULL,
 		ethBlockNum INTEGER NOT NULL,
-		ethEndBlockNum INTEGER NOT NULL,
-		resultsPublishingWindow INTEGER NOT NULL,
+		resPubStartBlock INTEGER NOT NULL,
+		resPubWindow INTEGER NOT NULL,
 		minParticipation INTEGER NOT NULL,
 		minPositiveVotes INTEGER NOT NULL,
 		insertedDatetime DATETIME
@@ -73,7 +73,7 @@ func (r *SQLite) Migrate() error {
 // ethBlockNum. When a new process is stored, it's assumed that it comes from
 // the SmartContract, and its status is set to types.ProcessStatusOn
 func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
-	ethBlockNum, ethEndBlockNum, resultsPublishingWindow uint64, minParticipation,
+	ethBlockNum, resPubStartBlock, resPubWindow uint64, minParticipation,
 	minPositiveVotes uint8) error {
 	sqlAddvote := `
 	INSERT INTO processes(
@@ -82,8 +82,8 @@ func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
 		censusRoot,
 		censusSize,
 		ethBlockNum,
-		ethEndBlockNum,
-		resultsPublishingWindow,
+		resPubStartBlock,
+		resPubWindow,
 		minParticipation,
 		minPositiveVotes,
 		insertedDatetime
@@ -97,7 +97,7 @@ func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
 	defer stmt.Close() //nolint:errcheck
 
 	_, err = stmt.Exec(id, types.ProcessStatusOn, censusRoot, censusSize,
-		ethBlockNum, ethEndBlockNum, resultsPublishingWindow, minParticipation,
+		ethBlockNum, resPubStartBlock, resPubWindow, minParticipation,
 		minPositiveVotes)
 	if err != nil {
 		return err
@@ -146,8 +146,8 @@ func (r *SQLite) ReadProcessByID(id uint64) (*types.Process, error) {
 
 	var process types.Process
 	err := row.Scan(&process.ID, &process.Status, &process.CensusRoot,
-		&process.CensusSize, &process.EthBlockNum, &process.EthEndBlockNum,
-		&process.ResultsPublishingWindow, &process.MinParticipation,
+		&process.CensusSize, &process.EthBlockNum, &process.ResPubStartBlock,
+		&process.ResPubWindow, &process.MinParticipation,
 		&process.MinPositiveVotes, &process.InsertedDatetime)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -177,7 +177,7 @@ func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 		process := types.Process{}
 		err = rows.Scan(&process.ID, &process.Status,
 			&process.CensusRoot, &process.CensusSize, &process.EthBlockNum,
-			&process.EthEndBlockNum, &process.ResultsPublishingWindow,
+			&process.ResPubStartBlock, &process.ResPubWindow,
 			&process.MinParticipation, &process.MinPositiveVotes,
 			&process.InsertedDatetime)
 		if err != nil {
@@ -188,15 +188,16 @@ func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 	return processes, nil
 }
 
-// ReadProcessesByEthEndBlockNum reads all the stored processes which contain
-// the given EthEndBlockNum
-func (r *SQLite) ReadProcessesByEthEndBlockNum(ethEndBlockNum uint64) ([]types.Process, error) {
+// ReadProcessesByResPubStartBlock reads all the stored processes which contain
+// the given ResPubStartBlock
+func (r *SQLite) ReadProcessesByResPubStartBlock(resPubStartBlock uint64) (
+	[]types.Process, error) {
 	sqlReadall := `
-	SELECT * FROM processes WHERE ethEndBlockNum = ?
+	SELECT * FROM processes WHERE resPubStartBlock = ?
 	ORDER BY datetime(insertedDatetime) DESC
 	`
 
-	rows, err := r.db.Query(sqlReadall, ethEndBlockNum)
+	rows, err := r.db.Query(sqlReadall, resPubStartBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +208,7 @@ func (r *SQLite) ReadProcessesByEthEndBlockNum(ethEndBlockNum uint64) ([]types.P
 		process := types.Process{}
 		err = rows.Scan(&process.ID, &process.Status,
 			&process.CensusRoot, &process.CensusSize, &process.EthBlockNum,
-			&process.EthEndBlockNum, &process.ResultsPublishingWindow,
+			&process.ResPubStartBlock, &process.ResPubWindow,
 			&process.MinParticipation, &process.MinPositiveVotes,
 			&process.InsertedDatetime)
 		if err != nil {
@@ -237,7 +238,7 @@ func (r *SQLite) ReadProcessesByStatus(status types.ProcessStatus) ([]types.Proc
 		process := types.Process{}
 		err = rows.Scan(&process.ID, &process.Status,
 			&process.CensusRoot, &process.CensusSize, &process.EthBlockNum,
-			&process.EthEndBlockNum, &process.ResultsPublishingWindow,
+			&process.ResPubStartBlock, &process.ResPubWindow,
 			&process.MinParticipation, &process.MinPositiveVotes,
 			&process.InsertedDatetime)
 		if err != nil {

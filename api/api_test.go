@@ -290,11 +290,11 @@ func TestGetProcessInfo(t *testing.T) {
 	process := doGetProcess(c, a, processID)
 	c.Assert(process.Status, qt.Equals, types.ProcessStatusOn)
 
-	err = sqlite.UpdateProcessStatus(processID, types.ProcessStatusClosed)
+	err = sqlite.UpdateProcessStatus(processID, types.ProcessStatusFrozen)
 	c.Assert(err, qt.IsNil)
 
 	process = doGetProcess(c, a, processID)
-	c.Assert(process.Status, qt.Equals, types.ProcessStatusClosed)
+	c.Assert(process.Status, qt.Equals, types.ProcessStatusFrozen)
 }
 
 func TestBuildCensusAndPostVoteHandler(t *testing.T) {
@@ -396,14 +396,14 @@ func TestPostVoteHandler(t *testing.T) {
 		doPostVote(c, a, processID, votes[i])
 	}
 
-	// simulate that the EthEndBlockNum is reached and that the process has
-	// ended
-	err = sqlite.UpdateProcessStatus(processID, types.ProcessStatusClosed)
+	// simulate that the ResPubStartBlock is reached and that the process
+	// has ended
+	err = sqlite.UpdateProcessStatus(processID, types.ProcessStatusFrozen)
 	c.Assert(err, qt.IsNil)
 
 	// check that getting the process status by the API returns status=Closed
 	process = doGetProcess(c, a, processID)
-	c.Assert(process.Status, qt.Equals, types.ProcessStatusClosed)
+	c.Assert(process.Status, qt.Equals, types.ProcessStatusFrozen)
 
 	// try to cast the last vote, expecting error because the process is closed
 	// doPostVote(c, a, processID, votes[nKeys-1])
@@ -420,5 +420,6 @@ func TestPostVoteHandler(t *testing.T) {
 	var msg errorMsg
 	err = json.Unmarshal(body, &msg)
 	c.Assert(err, qt.IsNil)
-	c.Assert(msg.Message, qt.Equals, "process EthEndBlockNum (20) reached, votes can not be added")
+	c.Assert(msg.Message, qt.Equals,
+		"process ResPubStartBlock (20) reached, votes can not be added")
 }

@@ -38,6 +38,7 @@ func main() {
 	flag.BoolVarP(&config.censusBuilder, "censusbuilder", "c", false, "CensusBuilder active")
 	flag.BoolVarP(&config.votesAggregator, "votesaggregator", "v", false, "VotesAggregator active")
 	// TODO add flag for configurable threshold of minimum census size (to prevent small censuses)
+	// TODO add flag for eth-start-scanning-block (to prevent scanning since the genesis)
 
 	flag.CommandLine.SortFlags = false
 	flag.Parse()
