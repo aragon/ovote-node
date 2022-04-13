@@ -300,3 +300,56 @@ func TestStoreAndReadVotes(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(votes), qt.Equals, nVotes)
 }
+
+func TestFrozeProcessesByCurrentBlockNum(t *testing.T) {
+	c := qt.New(t)
+
+	db, err := sql.Open("sqlite3", filepath.Join(c.TempDir(), "testdb.sqlite3"))
+	c.Assert(err, qt.IsNil)
+
+	sqlite := NewSQLite(db)
+
+	err = sqlite.Migrate()
+	c.Assert(err, qt.IsNil)
+
+	processID := uint64(123)
+	censusRoot := []byte("censusRoot")
+	censusSize := uint64(100)
+	ethBlockNum := uint64(10)
+	resPubStartBlock := uint64(20)
+	resPubWindow := uint64(20)
+	minParticipation := uint8(60)
+	minPositiveVotes := uint8(20)
+
+	// first, store few processes
+	for i := 0; i < 10; i++ {
+		err = sqlite.StoreProcess(processID+uint64(i), censusRoot,
+			censusSize, ethBlockNum, resPubStartBlock+uint64(i), resPubWindow,
+			minParticipation, minPositiveVotes)
+		c.Assert(err, qt.IsNil)
+	}
+
+	// expect 10 total processes
+	processes, err := sqlite.ReadProcesses()
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(processes), qt.Equals, 10)
+
+	// expect 10 processes with status = types.ProcessStatusOn
+	processes, err = sqlite.ReadProcessesByStatus(types.ProcessStatusOn)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(processes), qt.Equals, 10)
+
+	// simulate that the blockchain advances up to block i0, i1, ..., i5 (6 in total)
+	err = sqlite.FrozeProcessesByCurrentBlockNum(resPubStartBlock + 5)
+	c.Assert(err, qt.IsNil)
+
+	// expect 4 processes with status = types.ProcessStatusOn
+	processes, err = sqlite.ReadProcessesByStatus(types.ProcessStatusOn)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(processes), qt.Equals, 4)
+
+	// expect 6 processes with status = types.ProcessStatusFrozen
+	processes, err = sqlite.ReadProcessesByStatus(types.ProcessStatusFrozen)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(processes), qt.Equals, 6)
+}

@@ -95,6 +95,7 @@ func (c *Client) Sync(startBlock uint64) error {
 			log.Error(err)
 		}
 	}
+
 	return nil
 }
 
@@ -109,7 +110,7 @@ func (c *Client) processEventLog(eventLog types.Log) error {
 				" (newProcess): %x, err: %s",
 				eventLog.BlockNumber, eventLog.Data, err)
 		}
-		log.Debugf("blocknum: %d, newProcess event received, %v",
+		log.Debugf("blocknum: %d, %s",
 			eventLog.BlockNumber, e)
 		// store the process in the db
 		err = c.db.StoreProcess(e.ProcessID, e.CensusRoot[:], e.CensusSize,
@@ -126,7 +127,7 @@ func (c *Client) processEventLog(eventLog types.Log) error {
 				" (resultPublished): %x, err: %s",
 				eventLog.BlockNumber, eventLog.Data, err)
 		}
-		log.Debugf("blocknum: %d, resultPublished event received, %v",
+		log.Debugf("blocknum: %d, %s",
 			eventLog.BlockNumber, e)
 	case eventProcessClosedLen:
 		e, err := parseEventProcessClosed(eventLog.Data)
@@ -135,7 +136,7 @@ func (c *Client) processEventLog(eventLog types.Log) error {
 				" (processClosed): %x, err: %s",
 				eventLog.BlockNumber, eventLog.Data, err)
 		}
-		log.Debugf("blocknum: %d, processclosed event received, %v",
+		log.Debugf("blocknum: %d, %s",
 			eventLog.BlockNumber, e)
 	default:
 		return fmt.Errorf("unrecognized event log with length %d", l)
@@ -159,7 +160,7 @@ type eventNewProcess struct {
 
 // String implements the String interface for eventNewProcess
 func (e *eventNewProcess) String() string {
-	return fmt.Sprintf("eventNewProcess: Creator %s, ProcessID: %d, TxHash: %s,"+
+	return fmt.Sprintf("[eventNewProcess]: Creator %s, ProcessID: %d, TxHash: %s,"+
 		" CensusRoot: %s, CensusSize: %d, ResPubStartBlock: %d, ResPubWindow: %d,"+
 		" MinParticipation: %d, MinPositiveVotes: %d",
 		e.Creator, e.ProcessID, hex.EncodeToString(e.TxHash[:]),
@@ -218,7 +219,7 @@ type eventResultPublished struct {
 
 // String implements the String interface for eventResultPublished
 func (e *eventResultPublished) String() string {
-	return fmt.Sprintf("eventResultPublished: Publisher %s, ProcessID: %d,"+
+	return fmt.Sprintf("[eventResultPublished]: Publisher %s, ProcessID: %d,"+
 		" ReceiptsRoot: %s, Result: %d, NVotes: %d",
 		e.Publisher, e.ProcessID,
 		arbo.BytesToBigInt(e.ReceiptsRoot[:]), e.Result, e.NVotes)
@@ -261,7 +262,7 @@ type eventProcessClosed struct {
 
 // String implements the String interface for eventProcessClosed
 func (e *eventProcessClosed) String() string {
-	return fmt.Sprintf("eventProcessClosed: Caller %s, ProcessID: %d, Success: %t",
+	return fmt.Sprintf("[eventProcessClosed]: Caller %s, ProcessID: %d, Success: %t",
 		e.Caller, e.ProcessID, e.Success)
 }
 

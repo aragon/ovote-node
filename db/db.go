@@ -188,13 +188,37 @@ func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 	return processes, nil
 }
 
+// FrozeProcessesByCurrentBlockNum sets the process status to
+// ProcessStatusFrozen for all the processes that: have their
+// status=ProcessStatusOn and that their ResPubStartBlock <= currentBlockNum
+func (r *SQLite) FrozeProcessesByCurrentBlockNum(currBlockNum uint64) error {
+	sqlQuery := `
+	UPDATE processes
+	SET status = ?
+	WHERE (resPubStartBlock <= ? AND status = ?)
+	`
+
+	stmt, err := r.db.Prepare(sqlQuery)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close() //nolint:errcheck
+
+	_, err = stmt.Exec(types.ProcessStatusFrozen,
+		int(currBlockNum), types.ProcessStatusOn)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // ReadProcessesByResPubStartBlock reads all the stored processes which contain
 // the given ResPubStartBlock
 func (r *SQLite) ReadProcessesByResPubStartBlock(resPubStartBlock uint64) (
 	[]types.Process, error) {
 	sqlReadall := `
 	SELECT * FROM processes WHERE resPubStartBlock = ?
-	ORDER BY datetime(insertedDatetime) DESC
+	ORDER BY datetime(resPubStartBlock) DESC
 	`
 
 	rows, err := r.db.Query(sqlReadall, resPubStartBlock)
