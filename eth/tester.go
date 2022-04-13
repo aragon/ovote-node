@@ -5,8 +5,8 @@ import (
 	"github.com/aragon/zkmultisig-node/types"
 )
 
-// ensure that TestEthClient implements the eth.Client interface
-var _ Client = (*TestEthClient)(nil)
+// ensure that TestEthClient implements the eth.ClientInterf interface
+var _ ClientInterf = (*TestEthClient)(nil)
 
 // TestEthClient simulates an EthReader for testing purposes
 type TestEthClient struct {

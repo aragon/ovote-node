@@ -3,6 +3,7 @@ module github.com/aragon/zkmultisig-node
 go 1.17
 
 require (
+	github.com/ethereum/go-ethereum v1.10.8
 	github.com/frankban/quicktest v1.13.0
 	github.com/gin-gonic/gin v1.6.3
 	github.com/iden3/go-iden3-crypto v0.0.13
