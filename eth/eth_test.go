@@ -1,12 +1,82 @@
 package eth
 
 import (
+	"database/sql"
 	"encoding/hex"
+	"path/filepath"
 	"testing"
 
+	"github.com/aragon/zkmultisig-node/db"
+	"github.com/ethereum/go-ethereum/core/types"
 	qt "github.com/frankban/quicktest"
 	"github.com/vocdoni/arbo"
+	"go.vocdoni.io/dvote/log"
 )
+
+func TestProcessEventLog(t *testing.T) {
+	c := qt.New(t)
+	log.Init("debug", "stdout")
+
+	sqlDB, err := sql.Open("sqlite3", filepath.Join(c.TempDir(), "testdb.sqlite3"))
+	c.Assert(err, qt.IsNil)
+
+	sqlite := db.NewSQLite(sqlDB)
+	err = sqlite.Migrate()
+	c.Assert(err, qt.IsNil)
+
+	client := Client{db: sqlite}
+	c.Assert(err, qt.IsNil)
+
+	// log bytes generated from the contract event logs.
+	d0Hex := "000000000000000000000000a6a2e217af2f983ee55a6e2195c1763a9420f8ad" +
+		"0000000000000000000000000000000000000000000000000000000000000006" +
+		"0000000000000000000000000000000000000000000000000000000000003039" +
+		"08d67ea943c2daebe8b75017e7019efe37891ed6b67dd79b7a245aa634a62845" +
+		"00000000000000000000000000000000000000000000000000000000000003e8" +
+		"00000000000000000000000000000000000000000000000000000000006646b7" +
+		"000000000000000000000000000000000000000000000000000000000000000a" +
+		"000000000000000000000000000000000000000000000000000000000000000a" +
+		"000000000000000000000000000000000000000000000000000000000000003c"
+	d0, err := hex.DecodeString(d0Hex)
+	c.Assert(err, qt.IsNil)
+	d1Hex := "000000000000000000000000a6a2e217af2f983ee55a6e2195c1763a9420f8ad" +
+		"0000000000000000000000000000000000000000000000000000000000000006" +
+		"08d67ea943c2daebe8b75017e7019efe37891ed6b67dd79b7a245aa634a62845" +
+		"000000000000000000000000000000000000000000000000000000000000012c" +
+		"0000000000000000000000000000000000000000000000000000000000000190"
+	d1, err := hex.DecodeString(d1Hex)
+	c.Assert(err, qt.IsNil)
+	d2Hex := "000000000000000000000000a6a2e217af2f983ee55a6e2195c1763a9420f8ad" +
+		"0000000000000000000000000000000000000000000000000000000000000006" +
+		"0000000000000000000000000000000000000000000000000000000000000001"
+	d2, err := hex.DecodeString(d2Hex)
+	c.Assert(err, qt.IsNil)
+
+	log0 := types.Log{Data: d0, BlockNumber: 1}
+	log1 := types.Log{Data: d1, BlockNumber: 2}
+	log2 := types.Log{Data: d2, BlockNumber: 3}
+
+	err = client.processEventLog(log0)
+	c.Assert(err, qt.IsNil)
+	err = client.processEventLog(log1)
+	c.Assert(err, qt.IsNil)
+	err = client.processEventLog(log2)
+	c.Assert(err, qt.IsNil)
+
+	// check that the process from the event log has been correctly stored
+	// in the db
+	process, err := sqlite.ReadProcessByID(6)
+	c.Assert(err, qt.IsNil)
+	c.Assert(process.ID, qt.Equals, uint64(6))
+	c.Assert(arbo.BytesToBigInt(process.CensusRoot).String(), qt.DeepEquals,
+		"3997482243935470019154908634129466064231369626981967795243271053776626526277")
+	c.Assert(process.CensusSize, qt.Equals, uint64(1000))
+	c.Assert(process.EthBlockNum, qt.Equals, uint64(1))
+	c.Assert(process.ResPubStartBlock, qt.Equals, uint64(6702775))
+	c.Assert(process.ResPubWindow, qt.Equals, uint64(10))
+	c.Assert(process.MinParticipation, qt.Equals, uint8(10))
+	c.Assert(process.MinPositiveVotes, qt.Equals, uint8(60))
+}
 
 func TestParseEventNewProcess(t *testing.T) {
 	c := qt.New(t)
