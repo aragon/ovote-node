@@ -66,6 +66,19 @@ func (r *SQLite) Migrate() error {
 		return err
 	}
 
+	query = `
+	CREATE TABLE IF NOT EXISTS meta(
+		id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+		chainID INTEGER NOT NULL,
+		lastSyncBlockNum INTEGER NOT NULL,
+		lastUpdate DATETIME
+	);
+	`
+	_, err = r.db.Exec(query)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -75,7 +88,7 @@ func (r *SQLite) Migrate() error {
 func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
 	ethBlockNum, resPubStartBlock, resPubWindow uint64, minParticipation,
 	minPositiveVotes uint8) error {
-	sqlAddvote := `
+	sqlQuery := `
 	INSERT INTO processes(
 		id,
 		status,
@@ -90,7 +103,7 @@ func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
 	) values(?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`
 
-	stmt, err := r.db.Prepare(sqlAddvote)
+	stmt, err := r.db.Prepare(sqlQuery)
 	if err != nil {
 		return err
 	}
@@ -108,11 +121,11 @@ func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
 // UpdateProcessStatus sets the given types.ProcessStatus for the given id.
 // This method should only be called when updating from SmartContracts.
 func (r *SQLite) UpdateProcessStatus(id uint64, status types.ProcessStatus) error {
-	sqlAddvote := `
+	sqlQuery := `
 	UPDATE processes SET status=? WHERE id=?
 	`
 
-	stmt, err := r.db.Prepare(sqlAddvote)
+	stmt, err := r.db.Prepare(sqlQuery)
 	if err != nil {
 		return err
 	}
@@ -160,13 +173,13 @@ func (r *SQLite) ReadProcessByID(id uint64) (*types.Process, error) {
 
 // ReadProcesses reads all the stored types.Process
 func (r *SQLite) ReadProcesses() ([]types.Process, error) {
-	sqlReadall := `
+	sqlQuery := `
 	SELECT * FROM processes	ORDER BY datetime(insertedDatetime) DESC
 	`
 	// TODO maybe, in all affected methods, order by EthBlockNum (creation)
 	// instead of insertedDatetime.
 
-	rows, err := r.db.Query(sqlReadall)
+	rows, err := r.db.Query(sqlQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +203,7 @@ func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 
 // FrozeProcessesByCurrentBlockNum sets the process status to
 // ProcessStatusFrozen for all the processes that: have their
-// status=ProcessStatusOn and that their ResPubStartBlock <= currentBlockNum
+// status==ProcessStatusOn and that their ResPubStartBlock <= currentBlockNum
 func (r *SQLite) FrozeProcessesByCurrentBlockNum(currBlockNum uint64) error {
 	sqlQuery := `
 	UPDATE processes
@@ -216,12 +229,12 @@ func (r *SQLite) FrozeProcessesByCurrentBlockNum(currBlockNum uint64) error {
 // the given ResPubStartBlock
 func (r *SQLite) ReadProcessesByResPubStartBlock(resPubStartBlock uint64) (
 	[]types.Process, error) {
-	sqlReadall := `
+	sqlQuery := `
 	SELECT * FROM processes WHERE resPubStartBlock = ?
 	ORDER BY datetime(resPubStartBlock) DESC
 	`
 
-	rows, err := r.db.Query(sqlReadall, resPubStartBlock)
+	rows, err := r.db.Query(sqlQuery, resPubStartBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -246,12 +259,12 @@ func (r *SQLite) ReadProcessesByResPubStartBlock(resPubStartBlock uint64) (
 // ReadProcessesByStatus reads all the stored processes which have the given
 // status
 func (r *SQLite) ReadProcessesByStatus(status types.ProcessStatus) ([]types.Process, error) {
-	sqlReadall := `
+	sqlQuery := `
 	SELECT * FROM processes WHERE status = ?
 	ORDER BY datetime(insertedDatetime) DESC
 	`
 
-	rows, err := r.db.Query(sqlReadall, status)
+	rows, err := r.db.Query(sqlQuery, status)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +289,7 @@ func (r *SQLite) ReadProcessesByStatus(status types.ProcessStatus) ([]types.Proc
 // StoreVotePackage stores the given types.VotePackage for the given CensusRoot
 func (r *SQLite) StoreVotePackage(processID uint64, vote types.VotePackage) error {
 	// TODO check that processID exists
-	sqlAddvote := `
+	sqlQuery := `
 	INSERT INTO votepackages(
 		indx,
 		publicKey,
@@ -288,7 +301,7 @@ func (r *SQLite) StoreVotePackage(processID uint64, vote types.VotePackage) erro
 	) values(?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
 	`
 
-	stmt, err := r.db.Prepare(sqlAddvote)
+	stmt, err := r.db.Prepare(sqlQuery)
 	if err != nil {
 		return err
 	}
@@ -310,13 +323,13 @@ func (r *SQLite) StoreVotePackage(processID uint64, vote types.VotePackage) erro
 // smaller to bigger.
 func (r *SQLite) ReadVotePackagesByProcessID(processID uint64) ([]types.VotePackage, error) {
 	// TODO add pagination
-	sqlReadall := `
+	sqlQuery := `
 	SELECT signature, indx, publicKey, merkleproof, vote FROM votepackages
 	WHERE processID = ?
 	ORDER BY datetime(indx) DESC
 	`
 
-	rows, err := r.db.Query(sqlReadall, processID)
+	rows, err := r.db.Query(sqlQuery, processID)
 	if err != nil {
 		return nil, err
 	}
@@ -336,6 +349,64 @@ func (r *SQLite) ReadVotePackagesByProcessID(processID uint64) ([]types.VotePack
 		votes = append(votes, vote)
 	}
 	return votes, nil
+}
+
+// InitMeta initializes the meta table with the given chainID
+func (r *SQLite) InitMeta(chainID uint64) error {
+	sqlQuery := `
+	INSERT INTO meta(
+		chainID,
+		lastSyncBlockNum,
+		lastUpdate
+	) values(?, ?, CURRENT_TIMESTAMP)
+	`
+
+	stmt, err := r.db.Prepare(sqlQuery)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close() //nolint:errcheck
+
+	_, err = stmt.Exec(chainID, 0)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// UpdateLastSyncBlockNum stores the given lastSyncBlockNum into the meta
+// unique row
+func (r *SQLite) UpdateLastSyncBlockNum(lastSyncBlockNum uint64) error {
+	sqlQuery := `
+	UPDATE meta SET lastSyncBlockNum=? WHERE id=?
+	`
+
+	stmt, err := r.db.Prepare(sqlQuery)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close() //nolint:errcheck
+
+	_, err = stmt.Exec(int(lastSyncBlockNum), 1)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetLastSyncBlockNum gets the lastSyncBlockNum from the meta unique row
+func (r *SQLite) GetLastSyncBlockNum() (uint64, error) {
+	row := r.db.QueryRow("SELECT lastSyncBlockNum FROM meta WHERE id = 1")
+
+	var lastSyncBlockNum int
+	err := row.Scan(&lastSyncBlockNum)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("Meta does not exist in the db")
+		}
+		return 0, err
+	}
+	return uint64(lastSyncBlockNum), nil
 }
 
 // func (r *SQLite) ReadVotePackagesByCensusRoot(processID uint64) ([]types.VotePackage, error) {
