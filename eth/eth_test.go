@@ -107,3 +107,44 @@ func TestParseEventNewProcess(t *testing.T) {
 	c.Assert(e.MinParticipation, qt.Equals, uint8(10))
 	c.Assert(e.MinPositiveVotes, qt.Equals, uint8(60))
 }
+
+func TestParseEventResultPublished(t *testing.T) {
+	c := qt.New(t)
+	// log bytes generated from the contract resultPublish event
+	dHex := "000000000000000000000000a6a2e217af2f983ee55a6e2195c1763a9420f8ad" +
+		"0000000000000000000000000000000000000000000000000000000000000006" +
+		"08d67ea943c2daebe8b75017e7019efe37891ed6b67dd79b7a245aa634a62845" +
+		"000000000000000000000000000000000000000000000000000000000000012c" +
+		"0000000000000000000000000000000000000000000000000000000000000190"
+	d, err := hex.DecodeString(dHex)
+	c.Assert(err, qt.IsNil)
+
+	e, err := parseEventResultPublished(d)
+	c.Assert(err, qt.IsNil)
+
+	c.Assert(e.Publisher.String(), qt.Equals,
+		"0xa6a2E217aF2f983ee55A6e2195C1763a9420f8ad")
+	c.Assert(e.ProcessID, qt.Equals, uint64(6))
+	c.Assert(arbo.BytesToBigInt(e.ReceiptsRoot[:]).String(), qt.Equals,
+		"3997482243935470019154908634129466064231369626981967795243271053776626526277")
+	c.Assert(e.Result, qt.Equals, uint64(300))
+	c.Assert(e.NVotes, qt.Equals, uint64(400))
+}
+
+func TestParseEventProcessClosed(t *testing.T) {
+	c := qt.New(t)
+
+	// log bytes generated from the contract processClosed event
+	dHex := "000000000000000000000000a6a2e217af2f983ee55a6e2195c1763a9420f8ad" +
+		"0000000000000000000000000000000000000000000000000000000000000006" +
+		"0000000000000000000000000000000000000000000000000000000000000001"
+	d, err := hex.DecodeString(dHex)
+	c.Assert(err, qt.IsNil)
+
+	e, err := parseEventProcessClosed(d)
+	c.Assert(err, qt.IsNil)
+
+	c.Assert(e.Caller.String(), qt.Equals, "0xa6a2E217aF2f983ee55A6e2195C1763a9420f8ad")
+	c.Assert(e.ProcessID, qt.Equals, uint64(6))
+	c.Assert(e.Success, qt.IsTrue)
+}
