@@ -365,7 +365,7 @@ func TestMetaTable(t *testing.T) {
 	err = sqlite.Migrate()
 	c.Assert(err, qt.IsNil)
 
-	err = sqlite.InitMeta(42)
+	err = sqlite.InitMeta(42, 0)
 	c.Assert(err, qt.IsNil)
 
 	b, err := sqlite.GetLastSyncBlockNum()

@@ -203,7 +203,9 @@ func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 
 // FrozeProcessesByCurrentBlockNum sets the process status to
 // ProcessStatusFrozen for all the processes that: have their
-// status==ProcessStatusOn and that their ResPubStartBlock <= currentBlockNum
+// status==ProcessStatusOn and that their ResPubStartBlock <= currentBlockNum.
+// This method is intended to be used by the eth.Client when synchronizing
+// processes to the last block number.
 func (r *SQLite) FrozeProcessesByCurrentBlockNum(currBlockNum uint64) error {
 	sqlQuery := `
 	UPDATE processes
@@ -352,7 +354,7 @@ func (r *SQLite) ReadVotePackagesByProcessID(processID uint64) ([]types.VotePack
 }
 
 // InitMeta initializes the meta table with the given chainID
-func (r *SQLite) InitMeta(chainID uint64) error {
+func (r *SQLite) InitMeta(chainID, lastSyncBlockNum uint64) error {
 	sqlQuery := `
 	INSERT INTO meta(
 		chainID,
@@ -367,9 +369,9 @@ func (r *SQLite) InitMeta(chainID uint64) error {
 	}
 	defer stmt.Close() //nolint:errcheck
 
-	_, err = stmt.Exec(chainID, 0)
+	_, err = stmt.Exec(chainID, lastSyncBlockNum)
 	if err != nil {
-		return err
+		return fmt.Errorf("InitMeta error: %s", err)
 	}
 	return nil
 }
@@ -383,13 +385,13 @@ func (r *SQLite) UpdateLastSyncBlockNum(lastSyncBlockNum uint64) error {
 
 	stmt, err := r.db.Prepare(sqlQuery)
 	if err != nil {
-		return err
+		return fmt.Errorf("UpdateLastSyncBlockNum error: %s", err)
 	}
 	defer stmt.Close() //nolint:errcheck
 
 	_, err = stmt.Exec(int(lastSyncBlockNum), 1)
 	if err != nil {
-		return err
+		return fmt.Errorf("UpdateLastSyncBlockNum error: %s", err)
 	}
 	return nil
 }

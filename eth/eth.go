@@ -59,6 +59,13 @@ func New(opts Options) (*Client, error) {
 		return nil, err
 	}
 
+	// TODO store chainID in db (meta), or return it to caller to
+	// initialize there the meta db
+	// chainID, err := c.client.ChainID(context.Background())
+	// if err != nil {
+	//         return nil, err
+	// }
+
 	return &Client{
 		client:       client,
 		db:           opts.SQLite,
@@ -66,20 +73,117 @@ func New(opts Options) (*Client, error) {
 	}, nil
 }
 
-// Sync synchronizes from the configured zkmultisig contract events from the
-// given block to the current block height.
-func (c *Client) Sync(startBlock uint64) error {
+// Sync synchronizes the blocknums and events since the last synced block to
+// the current one, and then live syncs the new ones
+func (c *Client) Sync() error {
+	// get lastSyncBlockNum from db
+	lastSyncBlockNum, err := c.db.GetLastSyncBlockNum()
+	if err != nil {
+		return err
+	}
+
+	// start live sync events (before synchronizing the history)
+	go c.syncEventsLive() // nolint:errcheck
+
+	// sync from lastSyncBlockNum until the current blocknum
+	err = c.syncHistory(lastSyncBlockNum)
+	if err != nil {
+		return err
+	}
+
+	// live sync blocks
+	err = c.syncBlocksLive()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// syncBlocksLive synchronizes live the ethereum blocks
+func (c *Client) syncBlocksLive() error {
+	// sync to new blocks
+	headers := make(chan *types.Header)
+	sub, err := c.client.SubscribeNewHead(context.Background(), headers)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	for {
+		select {
+		case err := <-sub.Err():
+			log.Error(err)
+		case header := <-headers:
+			log.Debugf("new eth block received: %d", header.Number.Uint64())
+			// store in db lastSyncBlockNum
+			err = c.db.UpdateLastSyncBlockNum(header.Number.Uint64())
+			if err != nil {
+				log.Error(err)
+			}
+		}
+	}
+}
+
+// syncEventsLive synchronizes live from the zkmultisig contract events
+func (c *Client) syncEventsLive() error {
+	query := ethereum.FilterQuery{
+		Addresses: []common.Address{c.contractAddr},
+	}
+
+	logs := make(chan types.Log)
+	sub, err := c.client.SubscribeFilterLogs(context.Background(), query, logs)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	for {
+		select {
+		case err := <-sub.Err():
+			log.Error(err)
+		case vLog := <-logs:
+			err = c.processEventLog(vLog)
+			if err != nil {
+				log.Error(err)
+			}
+		}
+	}
+}
+
+// syncHistory synchronizes from the zkmultisig contract the events & blockNums
+// from the given block to the current block height.
+func (c *Client) syncHistory(startBlock uint64) error {
 	header, err := c.client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
 	currBlockNum := header.Number
-	log.Debugf("Sync blocknum: %d", currBlockNum)
+	log.Debugf("[SyncHistory] blocks from: %d, to: %d", startBlock, currBlockNum)
+	err = c.syncEventsHistory(big.NewInt(int64(startBlock)), currBlockNum)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
 
+	// update the processes which their ResPubStartBlock has been reached
+	// (and that they were still in status ProcessStatusOn
+	err = c.db.FrozeProcessesByCurrentBlockNum(currBlockNum.Uint64())
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	// TODO take into account chain reorgs: for currBlockNum, set to
+	// ProcessStatusOn the processes with resPubStartBlock>currBlockNum
+	return nil
+}
+
+// syncEventsHistory synchronizes from the zkmultisig contract log events
+// between the given startBlock and endBlock
+func (c *Client) syncEventsHistory(startBlock, endBlock *big.Int) error {
 	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(int64(startBlock)),
-		ToBlock:   currBlockNum,
+		FromBlock: startBlock,
+		ToBlock:   endBlock,
 		Addresses: []common.Address{
 			c.contractAddr,
 		},
@@ -110,14 +214,14 @@ func (c *Client) processEventLog(eventLog types.Log) error {
 				" (newProcess): %x, err: %s",
 				eventLog.BlockNumber, eventLog.Data, err)
 		}
-		log.Debugf("blocknum: %d, %s",
+		log.Debugf("Event: (blocknum: %d) %s",
 			eventLog.BlockNumber, e)
 		// store the process in the db
 		err = c.db.StoreProcess(e.ProcessID, e.CensusRoot[:], e.CensusSize,
 			eventLog.BlockNumber, e.ResPubStartBlock, e.ResPubWindow,
 			e.MinParticipation, e.MinPositiveVotes)
 		if err != nil {
-			return fmt.Errorf("error parsing event log (newProcess): %x, err: %s",
+			return fmt.Errorf("error storing new process: %x, err: %s",
 				eventLog.Data, err)
 		}
 	case eventResultPublishedLen:
@@ -127,7 +231,7 @@ func (c *Client) processEventLog(eventLog types.Log) error {
 				" (resultPublished): %x, err: %s",
 				eventLog.BlockNumber, eventLog.Data, err)
 		}
-		log.Debugf("blocknum: %d, %s",
+		log.Debugf("Event: (blocknum: %d) %s",
 			eventLog.BlockNumber, e)
 	case eventProcessClosedLen:
 		e, err := parseEventProcessClosed(eventLog.Data)
@@ -136,7 +240,7 @@ func (c *Client) processEventLog(eventLog types.Log) error {
 				" (processClosed): %x, err: %s",
 				eventLog.BlockNumber, eventLog.Data, err)
 		}
-		log.Debugf("blocknum: %d, %s",
+		log.Debugf("Event: (blocknum: %d) %s",
 			eventLog.BlockNumber, e)
 	default:
 		return fmt.Errorf("unrecognized event log with length %d", l)
