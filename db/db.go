@@ -8,6 +8,12 @@ import (
 	"github.com/aragon/zkmultisig-node/types"
 )
 
+var (
+	// ErrMetaNotInDB is used to indicate when metadata (which includes
+	// lastSyncBlockNum) is not stored in the db
+	ErrMetaNotInDB = fmt.Errorf("Meta does not exist in the db")
+)
+
 // SQLite represents the SQLite database
 type SQLite struct {
 	db *sql.DB
@@ -404,7 +410,7 @@ func (r *SQLite) GetLastSyncBlockNum() (uint64, error) {
 	err := row.Scan(&lastSyncBlockNum)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, fmt.Errorf("Meta does not exist in the db")
+			return 0, ErrMetaNotInDB
 		}
 		return 0, err
 	}

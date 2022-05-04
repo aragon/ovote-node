@@ -42,6 +42,7 @@ type Client struct {
 	client       *ethclient.Client
 	db           *db.SQLite
 	contractAddr common.Address
+	ChainID      uint64
 }
 
 // Options is used to pass the parameters to load a new Client
@@ -59,23 +60,28 @@ func New(opts Options) (*Client, error) {
 		return nil, err
 	}
 
-	// TODO store chainID in db (meta), or return it to caller to
-	// initialize there the meta db
-	// chainID, err := c.client.ChainID(context.Background())
-	// if err != nil {
-	//         return nil, err
-	// }
+	// get network ChainID
+	chainID, err := client.ChainID(context.Background())
+	if err != nil {
+		return nil, err
+	}
 
 	return &Client{
 		client:       client,
 		db:           opts.SQLite,
 		contractAddr: opts.ContractAddr,
+		ChainID:      chainID.Uint64(),
 	}, nil
 }
 
 // Sync synchronizes the blocknums and events since the last synced block to
 // the current one, and then live syncs the new ones
 func (c *Client) Sync() error {
+	// TODO WARNING:
+	// Probably the logic will need to be changed to support reorgs of
+	// chain. Maybe wait to sync blocks until some new blocks after the
+	// block have been created.
+
 	// get lastSyncBlockNum from db
 	lastSyncBlockNum, err := c.db.GetLastSyncBlockNum()
 	if err != nil {

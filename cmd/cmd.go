@@ -8,7 +8,9 @@ import (
 	"github.com/aragon/zkmultisig-node/api"
 	"github.com/aragon/zkmultisig-node/censusbuilder"
 	"github.com/aragon/zkmultisig-node/db"
+	"github.com/aragon/zkmultisig-node/eth"
 	"github.com/aragon/zkmultisig-node/votesaggregator"
+	"github.com/ethereum/go-ethereum/common"
 	_ "github.com/mattn/go-sqlite3"
 	flag "github.com/spf13/pflag"
 	kvdb "go.vocdoni.io/dvote/db"
@@ -19,8 +21,9 @@ import (
 // Config contains the main configuration parameters of the node
 type Config struct {
 	dir, logLevel, port            string
-	chainID                        uint64
+	startScanBlock                 uint64
 	censusBuilder, votesAggregator bool
+	contractAddr, ethURL           string
 }
 
 func main() {
@@ -34,11 +37,13 @@ func main() {
 		"storage data directory")
 	flag.StringVarP(&config.logLevel, "logLevel", "l", "info", "log level (info, debug, warn, error)")
 	flag.StringVarP(&config.port, "port", "p", "8080", "network port for the HTTP API")
-	flag.Uint64Var(&config.chainID, "chainid", 42, "ChainID")
 	flag.BoolVarP(&config.censusBuilder, "censusbuilder", "c", false, "CensusBuilder active")
 	flag.BoolVarP(&config.votesAggregator, "votesaggregator", "v", false, "VotesAggregator active")
+	flag.StringVar(&config.ethURL, "eth", "", "web3 provider url")
+	flag.StringVar(&config.contractAddr, "addr", "", "zkMultisig contract address")
+	flag.Uint64Var(&config.startScanBlock, "block", 0,
+		"Start scanning block (usually the block where the zkMultisig contract was deployed)")
 	// TODO add flag for configurable threshold of minimum census size (to prevent small censuses)
-	// TODO add flag for eth-start-scanning-block (to prevent scanning since the genesis)
 
 	flag.CommandLine.SortFlags = false
 	flag.Parse()
@@ -61,13 +66,61 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+
 	if config.votesAggregator {
+		// prepare DB
 		sqlDB, err := sql.Open("sqlite3", filepath.Join(config.dir, "testdb.sqlite3"))
 		if err != nil {
 			log.Fatal(err)
 		}
 		sqlite := db.NewSQLite(sqlDB)
-		votesAggregator, err = votesaggregator.New(sqlite, config.chainID)
+		err = sqlite.Migrate()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// TODO give error if config.contractAddr is incorrect
+		contractAddr := common.HexToAddress(config.contractAddr)
+
+		// prepare ethereum client
+		ethC, err := eth.New(eth.Options{
+			EthURL:       config.ethURL,
+			SQLite:       sqlite,
+			ContractAddr: contractAddr,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// TODO check that ethC has access to zkMultisig contract address
+
+		// set (if not set already) the 'lastSyncBlockNum'
+		// check if lastSyncBlockNum exists in the db
+		lastSyncBlockNum, err := sqlite.GetLastSyncBlockNum()
+		if err != nil && err != db.ErrMetaNotInDB {
+			log.Fatal(err)
+		}
+		if err == db.ErrMetaNotInDB {
+			// if not in db, check that the flag is not 0, and store it
+			if config.startScanBlock == 0 {
+				log.Fatal("startblock flag can not be 0 to initialize db" +
+					" (to prevent scanning since the genesis)")
+			}
+			err = sqlite.InitMeta(ethC.ChainID, config.startScanBlock)
+			if err != nil {
+				log.Fatal(err)
+			}
+			lastSyncBlockNum = config.startScanBlock
+		}
+		log.Infof("Eth scanning from block: %d", lastSyncBlockNum)
+
+		// prepare VotesAggregator
+		votesAggregator, err = votesaggregator.New(sqlite, ethC.ChainID)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = ethC.Sync()
 		if err != nil {
 			log.Fatal(err)
 		}
