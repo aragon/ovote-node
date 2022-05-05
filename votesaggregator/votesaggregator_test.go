@@ -109,7 +109,7 @@ func testGenerateZKInputs(c *qt.C, nMaxVotes, nLevels, nVotes, ratio int) {
 	c.Assert(err, qt.IsNil)
 
 	// fmt.Println(string(s))
-	filename := fmt.Sprintf("zkinputs_%d_%d_%d_%d.json",
+	filename := fmt.Sprintf("compat-tests/zkinputs_%d_%d_%d_%d.json",
 		nMaxVotes, nLevels, nVotes, ratio)
 	err = ioutil.WriteFile(filename, s, 0600)
 	c.Assert(err, qt.IsNil)

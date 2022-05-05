@@ -164,7 +164,7 @@ func (z *ZKInputs) MerkleProofToZKInputsFormat(p []byte) ([]*big.Int, error) {
 // ZKInputs.ReceiptsRoot & ZKInputs.ReceiptsSiblings.
 func (z *ZKInputs) ComputeReceipts(processID uint64, receiptsKeys, receiptsValues [][]byte) error {
 	// prepare receiptsTree
-	dir, err := ioutil.TempDir("/tmp", "prefix")
+	dir, err := ioutil.TempDir("/tmp", "prefix") // TODO use processID as prefix/name
 	if err != nil {
 		return err
 	}
@@ -173,6 +173,7 @@ func (z *ZKInputs) ComputeReceipts(processID uint64, receiptsKeys, receiptsValue
 	if err != nil {
 		return err
 	}
+	// TODO
 	// prefix := make([]byte, 8)
 	// binary.LittleEndian.PutUint64(prefix, processID)
 	// dbPebble := prefixeddb.NewPrefixedDatabase(originDB, prefix)
