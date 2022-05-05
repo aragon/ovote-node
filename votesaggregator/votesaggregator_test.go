@@ -2,18 +2,21 @@ package votesaggregator
 
 import (
 	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"testing"
 
 	"github.com/aragon/zkmultisig-node/db"
 	"github.com/aragon/zkmultisig-node/test"
+	"github.com/aragon/zkmultisig-node/types"
 	qt "github.com/frankban/quicktest"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestStoreAndReadVotes(t *testing.T) {
-	c := qt.New(t)
-
+func baseTestVotesAggregator(c *qt.C, chainID, processID uint64, nVotes, ratio int) (
+	*VotesAggregator, []types.VotePackage) {
 	sqlDB, err := sql.Open("sqlite3", filepath.Join(c.TempDir(), "testdb.sqlite3"))
 	c.Assert(err, qt.IsNil)
 
@@ -21,13 +24,11 @@ func TestStoreAndReadVotes(t *testing.T) {
 	err = sqlite.Migrate()
 	c.Assert(err, qt.IsNil)
 
-	chainID := uint64(3)
-	processID := uint64(123)
 	va, err := New(sqlite, chainID)
 	c.Assert(err, qt.IsNil)
 
 	// prepare the census
-	keys := test.GenUserKeys(10)
+	keys := test.GenUserKeys(nVotes)
 	testCensus := test.GenCensus(c, keys)
 	err = testCensus.Census.Close()
 	c.Assert(err, qt.IsNil)
@@ -35,7 +36,7 @@ func TestStoreAndReadVotes(t *testing.T) {
 	censusRoot, err := testCensus.Census.Root()
 	c.Assert(err, qt.IsNil)
 	censusSize := uint64(len(keys.PublicKeys))
-	votes := test.GenVotes(c, testCensus, chainID, processID)
+	votes := test.GenVotes(c, testCensus, chainID, processID, ratio)
 
 	// store a process for the test
 	ethBlockNum := uint64(10)
@@ -48,6 +49,18 @@ func TestStoreAndReadVotes(t *testing.T) {
 		minPositiveVotes)
 	c.Assert(err, qt.IsNil)
 
+	return va, votes
+}
+
+func TestStoreAndReadVotes(t *testing.T) {
+	c := qt.New(t)
+
+	nVotes := 10
+	chainID := uint64(3)
+	processID := uint64(123)
+	va, votes := baseTestVotesAggregator(c, chainID, processID, nVotes, 60)
+
+	var err error
 	for i := 0; i < len(votes); i++ {
 		err = va.AddVote(processID, votes[i])
 		c.Assert(err, qt.IsNil)
@@ -67,4 +80,37 @@ func TestStoreAndReadVotes(t *testing.T) {
 	votes[0].Vote = []byte("invalidvotecontent")
 	err = va.AddVote(processID, votes[0])
 	c.Assert(err.Error(), qt.Equals, "signature verification failed")
+}
+
+func TestGenerateZKInputs(t *testing.T) {
+	c := qt.New(t)
+	testGenerateZKInputs(c, 3, 3, 1, 60)
+	testGenerateZKInputs(c, 3, 3, 3, 60)
+	testGenerateZKInputs(c, 8, 4, 3, 60)
+	testGenerateZKInputs(c, 8, 4, 5, 60)
+	testGenerateZKInputs(c, 8, 4, 7, 60)
+	testGenerateZKInputs(c, 8, 4, 8, 60)
+}
+
+func testGenerateZKInputs(c *qt.C, nMaxVotes, nLevels, nVotes, ratio int) {
+	chainID := uint64(3)
+	processID := uint64(123)
+	va, votes := baseTestVotesAggregator(c, chainID, processID, nVotes, ratio)
+
+	var err error
+	for i := 0; i < len(votes); i++ {
+		err = va.AddVote(processID, votes[i])
+		c.Assert(err, qt.IsNil)
+	}
+
+	zki, err := va.GenerateZKInputs(processID, nMaxVotes, nLevels)
+	c.Assert(err, qt.IsNil)
+	s, err := json.Marshal(zki)
+	c.Assert(err, qt.IsNil)
+
+	// fmt.Println(string(s))
+	filename := fmt.Sprintf("zkinputs_%d_%d_%d_%d.json",
+		nMaxVotes, nLevels, nVotes, ratio)
+	err = ioutil.WriteFile(filename, s, 0600)
+	c.Assert(err, qt.IsNil)
 }

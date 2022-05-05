@@ -334,7 +334,7 @@ func (r *SQLite) ReadVotePackagesByProcessID(processID uint64) ([]types.VotePack
 	sqlQuery := `
 	SELECT signature, indx, publicKey, merkleproof, vote FROM votepackages
 	WHERE processID = ?
-	ORDER BY datetime(indx) DESC
+	ORDER BY indx ASC
 	`
 
 	rows, err := r.db.Query(sqlQuery, processID)

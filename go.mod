@@ -8,6 +8,7 @@ require (
 	github.com/gin-gonic/gin v1.6.3
 	github.com/iden3/go-iden3-crypto v0.0.13
 	github.com/mattn/go-sqlite3 v1.11.0
+	github.com/mitchellh/mapstructure v1.4.1
 	github.com/spf13/pflag v1.0.5
 	github.com/vocdoni/arbo v0.0.0-20220204101222-688a2e814db0
 	go.vocdoni.io/dvote v1.0.4-0.20211025120558-83c64f440044

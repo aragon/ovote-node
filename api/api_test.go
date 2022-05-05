@@ -373,7 +373,7 @@ func TestPostVoteHandler(t *testing.T) {
 
 	// prepare the votes
 	processID := uint64(123)
-	votes := test.GenVotes(c, cens, chainID, processID)
+	votes := test.GenVotes(c, cens, chainID, processID, 60)
 
 	// simulate SmartContract Process creation, by adding the CensusRoot in
 	// the votesaggregator db

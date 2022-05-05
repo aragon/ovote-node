@@ -2,6 +2,7 @@ package votesaggregator
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"time"
 
@@ -82,12 +83,12 @@ func (va *VotesAggregator) AddVote(processID uint64, votePackage types.VotePacka
 }
 
 // GenerateZKInputs will generate the zkInputs for the given processID
-func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, error) {
-	// TODO TMP
-	nMaxVotes, nLevels := 16, 4
+func (va *VotesAggregator) GenerateZKInputs(processID uint64, nMaxVotes,
+	nLevels /* tmp */ int) (*types.ZKInputs, error) {
+	// TODO TMP, nMaxVotes & nLevels will be defined by the compiled circuits
 	z := types.NewZKInputs(nMaxVotes, nLevels)
 
-	// TODO: set chainID (determined by config)
+	z.ChainID = big.NewInt(int64(va.chainID))
 	z.ProcessID = big.NewInt(int64(processID))
 	process, err := va.db.ReadProcessByID(processID)
 	if err != nil {
@@ -104,8 +105,14 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, 
 	if err != nil {
 		return nil, err
 	}
+	r := big.NewInt(0)
 	for i := 0; i < len(votes); i++ {
 		voteBI := arbo.BytesToBigInt(votes[i].Vote)
+		if voteBI.Cmp(big.NewInt(1)) == 1 {
+			// voteBI > 1:
+			return nil, fmt.Errorf("invalid vote value") // TODO better error handling
+		}
+		r = new(big.Int).Add(r, voteBI)
 		z.Vote[i] = voteBI
 		z.Index[i] = big.NewInt(int64(votes[i].CensusProof.Index))
 
@@ -128,21 +135,26 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64) (*types.ZKInputs, 
 		}
 
 		// prepare the receipt data with the index & pubK
-		receiptsKeys = append(receiptsKeys, types.Uint64ToIndex(votes[i].CensusProof.Index))
+		key := types.Uint64ToIndex(votes[i].CensusProof.Index)
+		key = key[:int(math.Ceil(float64(nLevels)/8))] //nolint:gomnd
+		receiptsKeys = append(receiptsKeys, key)
 		pubKHashBytes, err := types.HashPubKBytes(votes[i].CensusProof.PublicKey)
 		if err != nil {
 			return nil, err
 		}
 		receiptsValues = append(receiptsValues, pubKHashBytes[:])
 	}
+	z.Result = r
+	z.NVotes = big.NewInt(int64(len(votes)))
+	z.WithReceipts = big.NewInt(1)
 
 	// compute the z.ReceiptsRoot & zk.ReceiptsSiblings
-	err = z.ComputeReceipts(receiptsKeys, receiptsValues)
+	err = z.ComputeReceipts(processID, receiptsKeys, receiptsValues)
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO compute result
 
-	return nil, nil
+	return z, nil
 }

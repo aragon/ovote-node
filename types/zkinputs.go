@@ -1,10 +1,13 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"os"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/vocdoni/arbo"
 	kvdb "go.vocdoni.io/dvote/db"
 	"go.vocdoni.io/dvote/db/pebbledb"
@@ -26,7 +29,9 @@ type ZKInputs struct {
 	ProcessID    *big.Int `json:"processID"`
 	CensusRoot   *big.Int `json:"censusRoot"`
 	ReceiptsRoot *big.Int `json:"receiptsRoot"`
+	NVotes       *big.Int `json:"nVotes"`
 	Result       *big.Int `json:"result"`
+	WithReceipts *big.Int `json:"withReceipts"`
 
 	/////
 	// private inputs
@@ -54,7 +59,9 @@ func NewZKInputs(nMaxVotes, nLevels int) *ZKInputs {
 	z.ProcessID = big.NewInt(0)
 	z.CensusRoot = big.NewInt(0)
 	z.ReceiptsRoot = big.NewInt(0)
+	z.NVotes = big.NewInt(0)
 	z.Result = big.NewInt(0)
+	z.WithReceipts = big.NewInt(0)
 
 	z.Vote = emptyBISlice(nMaxVotes)
 	z.Index = emptyBISlice(nMaxVotes)
@@ -84,6 +91,51 @@ func emptyBISlice(n int) []*big.Int {
 	return s
 }
 
+func bigIntsToStrings(v interface{}) interface{} {
+	switch c := v.(type) {
+	case *big.Int:
+		return c.String()
+	case []*big.Int:
+		r := make([]interface{}, len(c))
+		for i := range c {
+			r[i] = bigIntsToStrings(c[i])
+		}
+		return r
+	case [][]*big.Int:
+		r := make([]interface{}, len(c))
+		for i := range c {
+			r[i] = bigIntsToStrings(c[i])
+		}
+		return r
+	case map[string]interface{}:
+		// avoid printing a warning when there is a struct type
+	default:
+		log.Warnf("bigIntsToStrings unexpected type: %T\n", v)
+	}
+	return nil
+}
+
+// MarshalJSON implements the json marshaler for ZKInputs
+func (z ZKInputs) MarshalJSON() ([]byte, error) {
+	var m map[string]interface{}
+	dec, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		TagName: "json",
+		Result:  &m,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = dec.Decode(z)
+	if err != nil {
+		return nil, err
+	}
+
+	for k, v := range m {
+		m[k] = bigIntsToStrings(v)
+	}
+	return json.Marshal(m)
+}
+
 // MerkleProofToZKInputsFormat prepares the given MerkleProof into the
 // ZKInputs.Siblings format for the circuit
 func (z *ZKInputs) MerkleProofToZKInputsFormat(p []byte) ([]*big.Int, error) {
@@ -110,29 +162,44 @@ func (z *ZKInputs) MerkleProofToZKInputsFormat(p []byte) ([]*big.Int, error) {
 // publicKeys (receiptsKeys & receiptsValues), to then compute the siblings of
 // each recipt, adding the siblings & root of the receipts tree to
 // ZKInputs.ReceiptsRoot & ZKInputs.ReceiptsSiblings.
-func (z *ZKInputs) ComputeReceipts(receiptsKeys, receiptsValues [][]byte) error {
+func (z *ZKInputs) ComputeReceipts(processID uint64, receiptsKeys, receiptsValues [][]byte) error {
 	// prepare receiptsTree
-	dbPebble, err := pebbledb.New(kvdb.Options{Path: os.TempDir()})
+	dir, err := ioutil.TempDir("/tmp", "prefix")
 	if err != nil {
 		return err
 	}
+	defer os.Remove(dir) //nolint:errcheck
+	dbPebble, err := pebbledb.New(kvdb.Options{Path: dir})
+	if err != nil {
+		return err
+	}
+	// prefix := make([]byte, 8)
+	// binary.LittleEndian.PutUint64(prefix, processID)
+	// dbPebble := prefixeddb.NewPrefixedDatabase(originDB, prefix)
+
 	receiptsTreeConfig := arbo.Config{
 		Database:     dbPebble,
 		MaxLevels:    z.Meta.NLevels,
 		HashFunction: arbo.HashFunctionPoseidon,
 	}
-	receiptsTree, err := arbo.NewTree(receiptsTreeConfig)
+	wTx := dbPebble.WriteTx()
+	defer wTx.Discard()
+
+	receiptsTree, err := arbo.NewTreeWithTx(wTx, receiptsTreeConfig)
 	if err != nil {
 		return err
 	}
 
 	// build the receiptsTree
-	invalids, err := receiptsTree.AddBatch(receiptsKeys, receiptsValues)
+	invalids, err := receiptsTree.AddBatchWithTx(wTx, receiptsKeys, receiptsValues)
 	if err != nil {
 		return err
 	}
 	if len(invalids) != 0 {
 		return fmt.Errorf("Can not add %d PublicKeys to the receiptsTree", len(invalids))
+	}
+	if err := wTx.Commit(); err != nil {
+		return err
 	}
 
 	// get the z.ReceiptsRoot

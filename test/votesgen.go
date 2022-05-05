@@ -1,10 +1,15 @@
 package test
 
 import (
+	"fmt"
+	"math"
+	"math/big"
+
 	"github.com/aragon/zkmultisig-node/census"
 	"github.com/aragon/zkmultisig-node/types"
 	qt "github.com/frankban/quicktest"
 	"github.com/iden3/go-iden3-crypto/babyjub"
+	"github.com/vocdoni/arbo"
 	"go.vocdoni.io/dvote/db"
 	"go.vocdoni.io/dvote/db/pebbledb"
 )
@@ -49,10 +54,18 @@ func GenCensus(c *qt.C, keys Keys) *Census {
 }
 
 // GenVotes generate the votes from the given Census
-func GenVotes(c *qt.C, cens *Census, chainID, processID uint64) []types.VotePackage {
+func GenVotes(c *qt.C, cens *Census, chainID, processID uint64, ratio int) []types.VotePackage {
+	if ratio >= 100 { //nolint:gomnd
+		panic(fmt.Errorf("ratio can not be >=100, ratio: %d", ratio))
+	}
 	var votes []types.VotePackage
+	nPosVotes := int(math.Ceil(float64(len(cens.Keys.PrivateKeys)) * (float64(ratio) / 100)))
+	l := arbo.HashFunctionPoseidon.Len()
 	for i := 0; i < len(cens.Keys.PrivateKeys); i++ {
-		voteBytes := []byte("test")
+		voteBytes := make([]byte, l)
+		if i < nPosVotes {
+			voteBytes = arbo.BigIntToBytes(l, big.NewInt(1))
+		}
 		msgToSign, err := types.HashVote(chainID, processID, voteBytes)
 		c.Assert(err, qt.IsNil)
 		sigUncomp := cens.Keys.PrivateKeys[i].SignPoseidon(msgToSign)
