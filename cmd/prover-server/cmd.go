@@ -1,9 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
+	"strconv"
 	"sync"
 
+	"github.com/aragon/zkmultisig-node/types"
 	"github.com/gin-gonic/gin"
 	flag "github.com/spf13/pflag"
 	"go.vocdoni.io/dvote/db"
@@ -47,20 +51,66 @@ func main() {
 	}
 }
 
+type errorMsg struct {
+	Message string `json:"message"`
+}
+
+func returnErr(c *gin.Context, err error) {
+	log.Warnw("HTTP API Bad request error", "err", err)
+	c.JSON(http.StatusBadRequest, errorMsg{
+		Message: err.Error(),
+	})
+}
+
 func (a *api) getStatus(c *gin.Context) {
+	if !a.isBusy() {
+		c.JSON(http.StatusLocked, gin.H{
+			"status": "prover busy",
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status": "ok",
 	})
 }
 
 func (a *api) genProof(c *gin.Context) {
+	a.lastID++
+
+	if !a.isBusy() {
+		c.JSON(http.StatusLocked, gin.H{
+			"status": "prover busy",
+		})
+	}
+
+	// get zkinputs.json and store it in disk
+	var zki types.ZKInputs
+	if err := c.ShouldBindJSON(&zki); err != nil {
+		returnErr(c, err)
+		return
+	}
+	file, err := json.MarshalIndent(zki, "", " ")
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+	err = ioutil.WriteFile("zkinputs"+strconv.Itoa(a.lastID)+".json",
+		file, 0600)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+
+	go a.genWitnessAndProof(strconv.Itoa(a.lastID))
+
+	// return the id, so the client knows which id to use to
+	// retrieve the proof later
 	c.JSON(http.StatusOK, gin.H{
-		"status": "TODO",
+		"id": a.lastID,
 	})
 }
 
 func (a *api) getProof(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"status": "TODO",
-	})
+	idStr := c.Param("id")
+	c.File("proof" + idStr + ".json")
 }
