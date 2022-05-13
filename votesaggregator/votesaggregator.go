@@ -154,7 +154,5 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64, nMaxVotes,
 		return nil, err
 	}
 
-	// TODO compute result
-
 	return z, nil
 }

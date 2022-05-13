@@ -72,11 +72,11 @@ func NewZKInputs(nMaxVotes, nLevels int) *ZKInputs {
 	z.R8y = emptyBISlice(nMaxVotes)
 	z.Siblings = make([][]*big.Int, nMaxVotes)
 	for i := 0; i < nMaxVotes; i++ {
-		z.Siblings[i] = emptyBISlice(nLevels)
+		z.Siblings[i] = emptyBISlice(nLevels + 1)
 	}
 	z.ReceiptsSiblings = make([][]*big.Int, nMaxVotes)
 	for i := 0; i < nMaxVotes; i++ {
-		z.ReceiptsSiblings[i] = emptyBISlice(nLevels)
+		z.ReceiptsSiblings[i] = emptyBISlice(nLevels + 1)
 	}
 
 	return z
@@ -151,7 +151,7 @@ func (z *ZKInputs) MerkleProofToZKInputsFormat(p []byte) ([]*big.Int, error) {
 	for i := 0; i < len(s); i++ {
 		b[i] = arbo.BytesToBigInt(s[i])
 	}
-	for i := len(b); i < z.Meta.NLevels; i++ {
+	for i := len(b); i < z.Meta.NLevels+1; i++ {
 		b = append(b, big.NewInt(0))
 	}
 

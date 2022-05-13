@@ -90,6 +90,7 @@ func TestGenerateZKInputs(t *testing.T) {
 	testGenerateZKInputs(c, 8, 4, 5, 60)
 	testGenerateZKInputs(c, 8, 4, 7, 60)
 	testGenerateZKInputs(c, 8, 4, 8, 60)
+	testGenerateZKInputs(c, 16, 4, 10, 60)
 }
 
 func testGenerateZKInputs(c *qt.C, nMaxVotes, nLevels, nVotes, ratio int) {
