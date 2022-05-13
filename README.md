@@ -5,9 +5,11 @@
 This repo contains the zkMultisig node implementation, compatible with the [zkmultisig](https://github.com/aragon/zkmultisig) components. All code is in early stages.
 
 ## Usage
-In the `cmd` dir:
+In the `cmd/zkmultisig-node` build the binarh: `go build`
+
+Which then can be used:
 ```
-> go run cmd.go --help
+> ./zkmultisig-node --help
 Usage of zkmultisig-node:
   -d, --dir string        storage data directory (default "~/.zkmultisig-node")
   -l, --logLevel string   log level (info, debug, warn, error) (default "info")
@@ -21,7 +23,7 @@ Usage of zkmultisig-node:
 
 So for example, running the node as a CensusBuilder and VotesAggregator for the ChainID=1 would be:
 ```
-go run cmd.go -c -v --chainid=1 \
+./zkmultisig-node -c -v --chainid=1 \
 --eth=wss://yourweb3url.com --addr=0xTheZKMultisigContractAddress --block=6678912
 ```
 
