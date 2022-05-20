@@ -65,7 +65,7 @@ func TestAddPublicKeys(t *testing.T) {
 
 	censusID1, err := cb.NewCensus()
 	c.Assert(err, qt.IsNil)
-	err = cb.AddPublicKeys(censusID1, keys.PublicKeys)
+	err = cb.AddPublicKeys(censusID1, keys.PublicKeys, keys.Weights)
 	c.Assert(err, qt.IsNil)
 	err = cb.CloseCensus(censusID1)
 	c.Assert(err, qt.IsNil)
@@ -76,7 +76,7 @@ func TestAddPublicKeys(t *testing.T) {
 	// create a 2nd Census, with the same pubKs than the 1st one
 	censusID2, err := cb.NewCensus()
 	c.Assert(err, qt.IsNil)
-	err = cb.AddPublicKeys(censusID2, keys.PublicKeys)
+	err = cb.AddPublicKeys(censusID2, keys.PublicKeys, keys.Weights)
 	c.Assert(err, qt.IsNil)
 
 	_, err = cb.CensusRoot(censusID2)
@@ -89,7 +89,7 @@ func TestAddPublicKeys(t *testing.T) {
 
 	// create new pubKs
 	keys2 := test.GenUserKeys(nKeys)
-	err = cb.AddPublicKeys(censusID2, keys2.PublicKeys)
+	err = cb.AddPublicKeys(censusID2, keys2.PublicKeys, keys2.Weights)
 	c.Assert(err, qt.IsNil)
 
 	err = cb.CloseCensus(censusID2)
@@ -114,7 +114,7 @@ func TestGetProof(t *testing.T) {
 
 	censusID, err := cb.NewCensus()
 	c.Assert(err, qt.IsNil)
-	err = cb.AddPublicKeys(censusID, keys.PublicKeys)
+	err = cb.AddPublicKeys(censusID, keys.PublicKeys, keys.Weights)
 	c.Assert(err, qt.IsNil)
 	err = cb.CloseCensus(censusID)
 	c.Assert(err, qt.IsNil)
@@ -127,7 +127,7 @@ func TestGetProof(t *testing.T) {
 		c.Assert(err, qt.IsNil)
 		c.Assert(index, qt.Equals, uint64(i))
 
-		v, err := census.CheckProof(root, proof, index, &keys.PublicKeys[i])
+		v, err := census.CheckProof(root, proof, index, &keys.PublicKeys[i], keys.Weights[i])
 		c.Assert(err, qt.IsNil)
 		c.Assert(v, qt.IsTrue)
 	}
@@ -147,7 +147,7 @@ func TestCensusInfo(t *testing.T) {
 
 	censusID, err := cb.NewCensus()
 	c.Assert(err, qt.IsNil)
-	err = cb.AddPublicKeys(censusID, keys.PublicKeys)
+	err = cb.AddPublicKeys(censusID, keys.PublicKeys, keys.Weights)
 	c.Assert(err, qt.IsNil)
 
 	ci, err := cb.CensusInfo(censusID)

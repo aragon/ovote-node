@@ -18,6 +18,7 @@ import (
 type Keys struct {
 	PrivateKeys []babyjub.PrivateKey
 	PublicKeys  []babyjub.PublicKey
+	Weights     []*big.Int
 }
 
 // Census contains the test Keys and census.Census
@@ -33,6 +34,7 @@ func GenUserKeys(nUsers int) Keys {
 		sk := babyjub.NewRandPrivKey()
 		keys.PrivateKeys = append(keys.PrivateKeys, sk)
 		keys.PublicKeys = append(keys.PublicKeys, *sk.Public())
+		keys.Weights = append(keys.Weights, big.NewInt(1))
 	}
 	return keys
 }
@@ -47,7 +49,7 @@ func GenCensus(c *qt.C, keys Keys) *Census {
 	cens, err := census.New(optsCensus)
 	c.Assert(err, qt.IsNil)
 
-	invalids, err := cens.AddPublicKeys(keys.PublicKeys)
+	invalids, err := cens.AddPublicKeys(keys.PublicKeys, keys.Weights)
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(invalids), qt.Equals, 0)
 	return &Census{Keys: keys, Census: cens}
@@ -80,6 +82,7 @@ func GenVotes(c *qt.C, cens *Census, chainID, processID uint64, ratio int) []typ
 			CensusProof: types.CensusProof{
 				Index:       index,
 				PublicKey:   &cens.Keys.PublicKeys[i],
+				Weight:      cens.Keys.Weights[i],
 				MerkleProof: proof,
 			},
 			Vote: voteBytes,

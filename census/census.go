@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/aragon/zkmultisig-node/types"
 	"github.com/iden3/go-iden3-crypto/babyjub"
@@ -247,7 +248,8 @@ func (c *Census) Info() (*Info, error) {
 
 // AddPublicKeys adds the batch of given PublicKeys, assigning incremental
 // indexes to each one.
-func (c *Census) AddPublicKeys(pubKs []babyjub.PublicKey) ([]arbo.Invalid, error) {
+func (c *Census) AddPublicKeys(pubKs []babyjub.PublicKey,
+	weights []*big.Int) ([]arbo.Invalid, error) {
 	isClosed, err := c.IsClosed()
 	if err != nil {
 		return nil, err
@@ -272,18 +274,23 @@ func (c *Census) AddPublicKeys(pubKs []babyjub.PublicKey) ([]arbo.Invalid, error
 	for i := 0; i < len(pubKs); i++ {
 		// overflow in index should not be possible, as previously the
 		// number of keys being added is already checked
-		// index := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(int(nextIndex)+i)))
-		// fmt.Println(nextIndex, i, nextIndex+uint64(i))
-		index := types.Uint64ToIndex(nextIndex + uint64(i))
-		indexes = append(indexes[:], index)
 
-		// store the mapping between PublicKey->Index
+		index := nextIndex + uint64(i)
+		// TODO ensure that the weights[i] does not overflow the field
+		indexAndWeight := types.IndexAndWeightToBytes(
+			nextIndex+uint64(i),
+			weights[i],
+		)
+		indexBytes := types.Uint64ToIndex(index)
+		indexes = append(indexes[:], indexBytes)
+
+		// store the mapping between PublicKey->Index,Weight
 		pubKComp := pubKs[i].Compress()
-		if err := wTx.Set(pubKComp[:], index); err != nil {
+		if err := wTx.Set(pubKComp[:], indexAndWeight[:]); err != nil {
 			return nil, err
 		}
 
-		pubKHashBytes, err := types.HashPubKBytes(&pubKs[i])
+		pubKHashBytes, err := types.HashPubKBytes(&pubKs[i], weights[i])
 		if err != nil {
 			return nil, err
 		}
@@ -330,15 +337,16 @@ func (c *Census) GetProof(pubK *babyjub.PublicKey) (uint64, []byte, error) {
 
 	// get index of pubK
 	pubKComp := pubK.Compress()
-	indexBytes, err := rTx.Get(pubKComp[:])
+	indexAndWeight, err := rTx.Get(pubKComp[:])
 	if err != nil {
 		return 0, nil, err
 	}
-	indexU64 := binary.LittleEndian.Uint64(indexBytes)
-	index := types.Uint64ToIndex(indexU64)
-	// index := arbo.BigIntToBytes(types.MaxKeyLen, big.NewInt(int64(indexU64)))
-
-	_, leafV, s, existence, err := c.tree.GenProof(index)
+	index, weight, err := types.BytesToIndexAndWeight(indexAndWeight)
+	if err != nil {
+		return 0, nil, err
+	}
+	index32Bytes := types.Uint64ToIndex(index)
+	_, leafV, s, existence, err := c.tree.GenProof(index32Bytes)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -347,7 +355,7 @@ func (c *Census) GetProof(pubK *babyjub.PublicKey) (uint64, []byte, error) {
 		return 0, nil,
 			fmt.Errorf("publicKey does not exist in the census (%x)", pubKComp[:])
 	}
-	hashPubKBytes, err := types.HashPubKBytes(pubK)
+	hashPubKBytes, err := types.HashPubKBytes(pubK, weight)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -355,15 +363,16 @@ func (c *Census) GetProof(pubK *babyjub.PublicKey) (uint64, []byte, error) {
 		return 0, nil,
 			fmt.Errorf("leafV!=pubK: %x!=%x", leafV, pubK)
 	}
-	return indexU64, s, nil
+	return index, s, nil
 }
 
 // CheckProof checks a given MerkleProof of the given PublicKey (& index)
 // for the given CensusRoot
-func CheckProof(root, proof []byte, index uint64, pubK *babyjub.PublicKey) (bool, error) {
+func CheckProof(root, proof []byte, index uint64, pubK *babyjub.PublicKey,
+	weight *big.Int) (bool, error) {
 	// indexBytes := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(index))) //nolint:gomnd
 	indexBytes := types.Uint64ToIndex(index)
-	hashPubK, err := types.HashPubKBytes(pubK)
+	hashPubK, err := types.HashPubKBytes(pubK, weight)
 	if err != nil {
 		return false, err
 	}

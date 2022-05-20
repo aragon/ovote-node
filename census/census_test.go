@@ -3,6 +3,7 @@ package census
 import (
 	"encoding/binary"
 	"math"
+	"math/big"
 	"testing"
 
 	"github.com/aragon/zkmultisig-node/types"
@@ -82,13 +83,15 @@ func TestAddPublicKeys(t *testing.T) {
 	nKeys := 100
 	// generate the publicKeys
 	var pubKs []babyjub.PublicKey
+	var weights []*big.Int
 	for i := 0; i < nKeys; i++ {
 		sk := babyjub.NewRandPrivKey()
 		pubK := sk.Public()
 		pubKs = append(pubKs, *pubK)
+		weights = append(weights, big.NewInt(1))
 	}
 
-	invalids, err := census.AddPublicKeys(pubKs)
+	invalids, err := census.AddPublicKeys(pubKs, weights)
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(invalids), qt.Equals, 0)
 
@@ -104,10 +107,11 @@ func TestAddPublicKeys(t *testing.T) {
 		sk := babyjub.NewRandPrivKey()
 		pubK := sk.Public()
 		pubKs = append(pubKs, *pubK)
+		weights = append(weights, big.NewInt(1))
 	}
 
 	// add the new publicKeys to the census
-	invalids, err = census.AddPublicKeys(pubKs[nKeys:])
+	invalids, err = census.AddPublicKeys(pubKs[nKeys:], weights[nKeys:])
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(invalids), qt.Equals, 0)
 
@@ -138,13 +142,15 @@ func TestGetProofAndCheckMerkleProof(t *testing.T) {
 	nKeys := 100
 	// generate the publicKeys
 	var pubKs []babyjub.PublicKey
+	var weights []*big.Int
 	for i := 0; i < nKeys; i++ {
 		sk := babyjub.NewRandPrivKey()
 		pubK := sk.Public()
 		pubKs = append(pubKs, *pubK)
+		weights = append(weights, big.NewInt(1))
 	}
 
-	invalids, err := census.AddPublicKeys(pubKs)
+	invalids, err := census.AddPublicKeys(pubKs, weights)
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(invalids), qt.Equals, 0)
 
@@ -158,14 +164,14 @@ func TestGetProofAndCheckMerkleProof(t *testing.T) {
 		c.Assert(err, qt.IsNil)
 
 		// check the proof using the CheckMerkleProof method
-		v, err := CheckProof(root, proof, index, &pubKs[i])
+		v, err := CheckProof(root, proof, index, &pubKs[i], weights[i])
 		c.Assert(err, qt.IsNil)
 		c.Assert(v, qt.IsTrue)
 
 		// check the proof using directly using arbo's method
 		// indexBytes := arbo.BigIntToBytes(maxKeyLen, big.NewInt(int64(index))) //nolint:gomnd
 		indexBytes := types.Uint64ToIndex(index)
-		hashPubK, err := types.HashPubKBytes(&pubKs[i])
+		hashPubK, err := types.HashPubKBytes(&pubKs[i], weights[i])
 		c.Assert(err, qt.IsNil)
 
 		v, err = arbo.CheckProof(arbo.HashFunctionPoseidon, indexBytes, hashPubK, root, proof)
@@ -182,13 +188,15 @@ func TestInfo(t *testing.T) {
 	nKeys := 100
 	// generate the publicKeys
 	var pubKs []babyjub.PublicKey
+	var weights []*big.Int
 	for i := 0; i < nKeys; i++ {
 		sk := babyjub.NewRandPrivKey()
 		pubK := sk.Public()
 		pubKs = append(pubKs, *pubK)
+		weights = append(weights, big.NewInt(1))
 	}
 
-	invalids, err := census.AddPublicKeys(pubKs)
+	invalids, err := census.AddPublicKeys(pubKs, weights)
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(invalids), qt.Equals, 0)
 

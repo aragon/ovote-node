@@ -108,16 +108,17 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64, nMaxVotes,
 	r := big.NewInt(0)
 	for i := 0; i < len(votes); i++ {
 		voteBI := arbo.BytesToBigInt(votes[i].Vote)
-		if voteBI.Cmp(big.NewInt(1)) == 1 {
-			// voteBI > 1:
+		if voteBI.Cmp(big.NewInt(1)) == 1 { // voteBI > 1:
 			return nil, fmt.Errorf("invalid vote value") // TODO better error handling
 		}
-		r = new(big.Int).Add(r, voteBI)
+		r = new(big.Int).Add(r, new(big.Int).Mul(voteBI, votes[i].CensusProof.Weight))
+		// TODO ensure that Weight does not overflow the field
 		z.Vote[i] = voteBI
 		z.Index[i] = big.NewInt(int64(votes[i].CensusProof.Index))
 
 		z.PkX[i] = votes[i].CensusProof.PublicKey.X
 		z.PkY[i] = votes[i].CensusProof.PublicKey.Y
+		z.Weight[i] = votes[i].CensusProof.Weight
 		sig, err := votes[i].Signature.Decompress()
 		if err != nil {
 			// TODO, probably instead of stopping the process, skip
@@ -138,7 +139,9 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64, nMaxVotes,
 		key := types.Uint64ToIndex(votes[i].CensusProof.Index)
 		key = key[:int(math.Ceil(float64(nLevels)/8))] //nolint:gomnd
 		receiptsKeys = append(receiptsKeys, key)
-		pubKHashBytes, err := types.HashPubKBytes(votes[i].CensusProof.PublicKey)
+		pubKHashBytes, err := types.HashPubKBytes(
+			votes[i].CensusProof.PublicKey,
+			votes[i].CensusProof.Weight)
 		if err != nil {
 			return nil, err
 		}

@@ -3,6 +3,7 @@ package censusbuilder
 import (
 	"encoding/binary"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -194,12 +195,13 @@ func (cb *CensusBuilder) CensusInfo(censusID uint64) (*census.Info, error) {
 
 // AddPublicKeys adds the batch of given PublicKeys to the Census for the given
 // censusID.
-func (cb *CensusBuilder) AddPublicKeys(censusID uint64, pubKs []babyjub.PublicKey) error {
+func (cb *CensusBuilder) AddPublicKeys(censusID uint64, pubKs []babyjub.PublicKey,
+	weights []*big.Int) error {
 	err := cb.loadCensusIfNotYet(censusID)
 	if err != nil {
 		return err
 	}
-	invalids, err := cb.censuses[censusID].AddPublicKeys(pubKs)
+	invalids, err := cb.censuses[censusID].AddPublicKeys(pubKs, weights)
 	if err != nil {
 		return err
 	}
@@ -215,8 +217,9 @@ func (cb *CensusBuilder) AddPublicKeys(censusID uint64, pubKs []babyjub.PublicKe
 // AddPublicKeysAndStoreError will call the AddPublicKeys and if there is an
 // error, it will store it into the DB. This method is designed to be called
 // from a goroutine.
-func (cb *CensusBuilder) AddPublicKeysAndStoreError(censusID uint64, pubKs []babyjub.PublicKey) {
-	if err := cb.AddPublicKeys(censusID, pubKs); err != nil {
+func (cb *CensusBuilder) AddPublicKeysAndStoreError(censusID uint64,
+	pubKs []babyjub.PublicKey, weights []*big.Int) {
+	if err := cb.AddPublicKeys(censusID, pubKs, weights); err != nil {
 		log.Debugf("[CensusID=%d] error: %s", err)
 		if err2 := cb.SetErrMsg(censusID, err.Error()); err2 != nil {
 			log.Errorf("Error while trying to store CensusID:%d status: %s. Error: %s",

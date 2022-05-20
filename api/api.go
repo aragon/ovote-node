@@ -85,7 +85,7 @@ func (a *API) postNewCensus(c *gin.Context) {
 
 	// TODO maybe remove the key addition, to force usage of separated
 	// endpoints (newCensus, and then addKeys)
-	go a.cb.AddPublicKeysAndStoreError(censusID, d.PublicKeys)
+	go a.cb.AddPublicKeysAndStoreError(censusID, d.PublicKeys, d.Weights)
 
 	c.JSON(http.StatusOK, censusID)
 }
@@ -106,7 +106,7 @@ func (a *API) postAddKeys(c *gin.Context) {
 		return
 	}
 
-	go a.cb.AddPublicKeysAndStoreError(censusID, d.PublicKeys)
+	go a.cb.AddPublicKeysAndStoreError(censusID, d.PublicKeys, d.Weights)
 
 	c.JSON(http.StatusOK, censusID)
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -52,8 +53,8 @@ func newTestAPI(c *qt.C, chainID uint64) (API, *db.SQLite) {
 	return API{r: r, cb: cb, va: va}, sqlite
 }
 
-func doPostNewCensus(c *qt.C, a API, pubKs []babyjub.PublicKey) uint64 {
-	reqData := newCensusReq{PublicKeys: pubKs}
+func doPostNewCensus(c *qt.C, a API, pubKs []babyjub.PublicKey, weights []*big.Int) uint64 {
+	reqData := newCensusReq{PublicKeys: pubKs, Weights: weights}
 	jsonReqData, err := json.Marshal(reqData)
 	c.Assert(err, qt.IsNil)
 
@@ -72,9 +73,9 @@ func doPostNewCensus(c *qt.C, a API, pubKs []babyjub.PublicKey) uint64 {
 	return censusID
 }
 
-func doPostAddKeys(c *qt.C, a API, censusID uint64, pubKs []babyjub.PublicKey) {
+func doPostAddKeys(c *qt.C, a API, censusID uint64, pubKs []babyjub.PublicKey, weights []*big.Int) {
 	censusIDStr := strconv.Itoa(int(censusID))
-	reqData := newCensusReq{PublicKeys: pubKs}
+	reqData := newCensusReq{PublicKeys: pubKs, Weights: weights}
 	jsonReqData, err := json.Marshal(reqData)
 	c.Assert(err, qt.IsNil)
 	req, err := http.NewRequest("POST", "/census/"+censusIDStr, bytes.NewBuffer(jsonReqData))
@@ -188,7 +189,7 @@ func TestPostNewCensusHandler(t *testing.T) {
 	log.Debugf("Generating %d PublicKeys", nKeys)
 	keys := test.GenUserKeys(nKeys)
 	// create a new census with the keys
-	doPostNewCensus(c, a, keys.PublicKeys)
+	doPostNewCensus(c, a, keys.PublicKeys, keys.Weights)
 }
 
 func TestPostAddKeysHandler(t *testing.T) {
@@ -205,10 +206,10 @@ func TestPostAddKeysHandler(t *testing.T) {
 	keys := test.GenUserKeys(nKeys)
 
 	// create a new census with the first 100 keys
-	censusID := doPostNewCensus(c, a, keys.PublicKeys[:100])
+	censusID := doPostNewCensus(c, a, keys.PublicKeys[:100], keys.Weights[:100])
 
 	// Add the rest of the keys
-	doPostAddKeys(c, a, censusID, keys.PublicKeys[100:])
+	doPostAddKeys(c, a, censusID, keys.PublicKeys[100:], keys.Weights[100:])
 }
 
 func TestPostCloseCensusHandler(t *testing.T) {
@@ -226,7 +227,7 @@ func TestPostCloseCensusHandler(t *testing.T) {
 	keys := test.GenUserKeys(nKeys)
 
 	// create a new census with the first 100 keys
-	censusID := doPostNewCensus(c, a, keys.PublicKeys)
+	censusID := doPostNewCensus(c, a, keys.PublicKeys, keys.Weights)
 
 	time.Sleep(1 * time.Second)
 
@@ -248,7 +249,7 @@ func TestGetProofHandler(t *testing.T) {
 	keys := test.GenUserKeys(nKeys)
 
 	// create a new census with the first 100 keys
-	censusID := doPostNewCensus(c, a, keys.PublicKeys)
+	censusID := doPostNewCensus(c, a, keys.PublicKeys, keys.Weights)
 
 	time.Sleep(1 * time.Second)
 
@@ -259,7 +260,7 @@ func TestGetProofHandler(t *testing.T) {
 		// fmt.Printf("Index: %d, MerkleProof: %x\n", cp.Index, cp.MerkleProof)
 
 		v, err := census.CheckProof(censusRoot, cp.MerkleProof, cp.Index,
-			&keys.PublicKeys[i])
+			&keys.PublicKeys[i], keys.Weights[i])
 		c.Assert(err, qt.IsNil)
 		c.Assert(v, qt.IsTrue)
 	}
@@ -313,7 +314,7 @@ func TestBuildCensusAndPostVoteHandler(t *testing.T) {
 	keys := test.GenUserKeys(nKeys)
 
 	// create a new census with the first 100 keys
-	censusID := doPostNewCensus(c, a, keys.PublicKeys)
+	censusID := doPostNewCensus(c, a, keys.PublicKeys, keys.Weights)
 
 	time.Sleep(1 * time.Second)
 
@@ -324,7 +325,7 @@ func TestBuildCensusAndPostVoteHandler(t *testing.T) {
 	for i := 0; i < nKeys; i++ {
 		cp := doGetProof(c, a, censusID, keys.PublicKeys[i])
 		v, err := census.CheckProof(censusRoot, cp.MerkleProof, cp.Index,
-			&keys.PublicKeys[i])
+			&keys.PublicKeys[i], keys.Weights[i])
 		c.Assert(err, qt.IsNil)
 		c.Assert(v, qt.IsTrue)
 		proofs = append(proofs, cp)
