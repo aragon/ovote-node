@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"math/big"
 	"testing"
 
 	qt "github.com/frankban/quicktest"
@@ -29,10 +30,11 @@ func TestVerifyCensusProof(t *testing.T) {
 	// create key
 	sk := babyjub.NewRandPrivKey()
 	pubK := sk.Public()
+	weight := big.NewInt(1)
 
 	index := uint64(1)
 	indexBytes := Uint64ToIndex(index)
-	value, err := HashPubKBytes(pubK)
+	value, err := HashPubKBytes(pubK, weight)
 	c.Assert(err, qt.IsNil)
 
 	err = tree.Add(indexBytes, value)
@@ -54,6 +56,7 @@ func TestVerifyCensusProof(t *testing.T) {
 		CensusProof: CensusProof{
 			Index:       index,
 			PublicKey:   pubK,
+			Weight:      weight,
 			MerkleProof: proof,
 		},
 		Vote: vote,
@@ -125,10 +128,11 @@ func TestVotePackageJSON(t *testing.T) {
 	// create key (deterministic)
 	var sk babyjub.PrivateKey
 	pubK := sk.Public()
+	weight := big.NewInt(1)
 
 	index := uint64(1)
 	indexBytes := Uint64ToIndex(index)
-	value, err := HashPubKBytes(pubK)
+	value, err := HashPubKBytes(pubK, weight)
 	c.Assert(err, qt.IsNil)
 
 	err = tree.Add(indexBytes, value)
@@ -146,6 +150,7 @@ func TestVotePackageJSON(t *testing.T) {
 		CensusProof: CensusProof{
 			Index:       index,
 			PublicKey:   pubK,
+			Weight:      weight,
 			MerkleProof: proof,
 		},
 		Vote: vote,
@@ -155,13 +160,14 @@ func TestVotePackageJSON(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	c.Assert(string(j), qt.Equals,
 		`{"index":1,"publicKey":"91f1095ac019b50610b5cb56e5db3889177fee`+
-			`8b6422fca3dac04ee1932431a9","merkleProof":"04000000"}`)
+			`8b6422fca3dac04ee1932431a9","weight":1,"merkleProof":"04000000"}`)
 
 	var cp2 CensusProof
 	err = json.Unmarshal(j, &cp2)
 	c.Assert(err, qt.IsNil)
 	c.Assert(cp2.Index, qt.Equals, vp.CensusProof.Index)
 	c.Assert(cp2.PublicKey.String(), qt.Equals, vp.CensusProof.PublicKey.String())
+	c.Assert(cp2.Weight.String(), qt.Equals, vp.CensusProof.Weight.String())
 	c.Assert(cp2.MerkleProof, qt.DeepEquals, vp.CensusProof.MerkleProof)
 
 	j, err = json.Marshal(vp)
@@ -171,8 +177,8 @@ func TestVotePackageJSON(t *testing.T) {
 			`99cea5542d9af79d8746b26ad71511fa7eaaac59c759ecabb16032`+
 			`7f7ed826747c7566be0dac3402","censusProof":{"index":1,"`+
 			`publicKey":"91f1095ac019b50610b5cb56e5db3889177fee8b64`+
-			`22fca3dac04ee1932431a9","merkleProof":"04000000"},"vot`+
-			`e":"766f746574657374"}`)
+			`22fca3dac04ee1932431a9","weight":1,"merkleProof":"0400`+
+			`0000"},"vote":"766f746574657374"}`)
 
 	var vp2 VotePackage
 	err = json.Unmarshal(j, &vp2)
@@ -180,7 +186,20 @@ func TestVotePackageJSON(t *testing.T) {
 	c.Assert(vp2.Signature, qt.Equals, vp.Signature)
 	c.Assert(vp2.CensusProof.Index, qt.Equals, vp.CensusProof.Index)
 	c.Assert(vp2.CensusProof.PublicKey.String(), qt.Equals, vp.CensusProof.PublicKey.String())
+	c.Assert(vp2.CensusProof.Weight.String(), qt.Equals, vp.CensusProof.Weight.String())
 	c.Assert(vp2.CensusProof.MerkleProof, qt.DeepEquals, vp.CensusProof.MerkleProof)
 
 	c.Assert(vp2.Vote, qt.DeepEquals, vp.Vote)
+}
+func TestIndexAndWeightParser(t *testing.T) {
+	c := qt.New(t)
+
+	index := uint64(1234)
+	weight := big.NewInt(987654321)
+
+	b := IndexAndWeightToBytes(index, weight)
+	i2, w2, err := BytesToIndexAndWeight(b)
+	c.Assert(err, qt.IsNil)
+	c.Assert(i2, qt.Equals, index)
+	c.Assert(weight.String(), qt.Equals, w2.String())
 }

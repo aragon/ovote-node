@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/aragon/zkmultisig-node/types"
 )
@@ -59,6 +60,7 @@ func (r *SQLite) Migrate() error {
 	CREATE TABLE IF NOT EXISTS votepackages(
 		indx INTEGER NOT NULL PRIMARY KEY UNIQUE,
 		publicKey BLOB NOT NULL UNIQUE,
+		weight BLOB NOT NULL,
 		merkleproof BLOB NOT NULL UNIQUE,
 		signature BLOB NOT NULL,
 		vote BLOB NOT NULL,
@@ -301,12 +303,13 @@ func (r *SQLite) StoreVotePackage(processID uint64, vote types.VotePackage) erro
 	INSERT INTO votepackages(
 		indx,
 		publicKey,
+		weight,
 		merkleproof,
 		signature,
 		vote,
 		insertedDatetime,
 		processID
-	) values(?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+	) values(?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
 	`
 
 	stmt, err := r.db.Prepare(sqlQuery)
@@ -315,8 +318,14 @@ func (r *SQLite) StoreVotePackage(processID uint64, vote types.VotePackage) erro
 	}
 	defer stmt.Close() //nolint:errcheck
 
+	if vote.CensusProof.Weight == nil {
+		// no weight defined, use 0
+		vote.CensusProof.Weight = big.NewInt(0)
+	}
+
 	_, err = stmt.Exec(vote.CensusProof.Index, vote.CensusProof.PublicKey,
-		vote.CensusProof.MerkleProof, vote.Signature[:], vote.Vote, processID)
+		vote.CensusProof.Weight.Bytes(), vote.CensusProof.MerkleProof,
+		vote.Signature[:], vote.Vote, processID)
 	if err != nil {
 		if err.Error() == "FOREIGN KEY constraint failed" {
 			return fmt.Errorf("Can not store VotePackage, ProcessID=%d does not exist", processID)
@@ -332,7 +341,7 @@ func (r *SQLite) StoreVotePackage(processID uint64, vote types.VotePackage) erro
 func (r *SQLite) ReadVotePackagesByProcessID(processID uint64) ([]types.VotePackage, error) {
 	// TODO add pagination
 	sqlQuery := `
-	SELECT signature, indx, publicKey, merkleproof, vote FROM votepackages
+	SELECT signature, indx, publicKey, weight, merkleproof, vote FROM votepackages
 	WHERE processID = ?
 	ORDER BY indx ASC
 	`
@@ -344,15 +353,17 @@ func (r *SQLite) ReadVotePackagesByProcessID(processID uint64) ([]types.VotePack
 	defer rows.Close() //nolint:errcheck
 
 	var votes []types.VotePackage
+	var weightBytes []byte
 	for rows.Next() {
 		vote := types.VotePackage{}
 		var sigBytes []byte
 		err = rows.Scan(&sigBytes, &vote.CensusProof.Index,
-			&vote.CensusProof.PublicKey, &vote.CensusProof.MerkleProof,
-			&vote.Vote)
+			&vote.CensusProof.PublicKey, &weightBytes,
+			&vote.CensusProof.MerkleProof, &vote.Vote)
 		if err != nil {
 			return nil, err
 		}
+		vote.CensusProof.Weight = new(big.Int).SetBytes(weightBytes)
 		copy(vote.Signature[:], sigBytes)
 		votes = append(votes, vote)
 	}

@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"math/big"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -240,6 +241,7 @@ func TestStoreAndReadVotes(t *testing.T) {
 		CensusProof: types.CensusProof{
 			Index:       1,
 			PublicKey:   &keys.PublicKeys[0],
+			Weight:      big.NewInt(1),
 			MerkleProof: []byte("test"),
 		},
 		Vote: []byte("test"),
@@ -280,6 +282,7 @@ func TestStoreAndReadVotes(t *testing.T) {
 			CensusProof: types.CensusProof{
 				Index:       uint64(i),
 				PublicKey:   pubK,
+				Weight:      big.NewInt(1),
 				MerkleProof: []byte("test" + strconv.Itoa(i)),
 			},
 			Vote: voteBytes,

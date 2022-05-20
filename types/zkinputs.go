@@ -37,9 +37,10 @@ type ZKInputs struct {
 	// private inputs
 	Vote []*big.Int `json:"vote"`
 	// user's key related
-	Index []*big.Int `json:"index"`
-	PkX   []*big.Int `json:"pkX"`
-	PkY   []*big.Int `json:"pkY"`
+	Index  []*big.Int `json:"index"`
+	PkX    []*big.Int `json:"pkX"`
+	PkY    []*big.Int `json:"pkY"`
+	Weight []*big.Int `json:"weight"`
 	// signatures
 	S   []*big.Int `json:"s"`
 	R8x []*big.Int `json:"r8x"`
@@ -67,6 +68,7 @@ func NewZKInputs(nMaxVotes, nLevels int) *ZKInputs {
 	z.Index = emptyBISlice(nMaxVotes)
 	z.PkX = emptyBISlice(nMaxVotes)
 	z.PkY = emptyBISlice(nMaxVotes)
+	z.Weight = emptyBISlice(nMaxVotes)
 	z.S = emptyBISlice(nMaxVotes)
 	z.R8x = emptyBISlice(nMaxVotes)
 	z.R8y = emptyBISlice(nMaxVotes)

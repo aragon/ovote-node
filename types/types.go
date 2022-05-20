@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -61,6 +62,7 @@ func (b *ByteArray) UnmarshalJSON(j []byte) error {
 type CensusProof struct {
 	Index       uint64             `json:"index"`
 	PublicKey   *babyjub.PublicKey `json:"publicKey"`
+	Weight      *big.Int           `json:"weight"`
 	MerkleProof ByteArray          `json:"merkleProof"`
 }
 
@@ -139,7 +141,8 @@ func (vp *VotePackage) verifySignature(chainID, processID uint64) error {
 }
 func (vp *VotePackage) verifyMerkleProof(root []byte) error {
 	indexBytes := Uint64ToIndex(vp.CensusProof.Index)
-	pubKHashBytes, err := HashPubKBytes(vp.CensusProof.PublicKey)
+	pubKHashBytes, err := HashPubKBytes(vp.CensusProof.PublicKey,
+		vp.CensusProof.Weight)
 	if err != nil {
 		return err
 	}
@@ -173,9 +176,14 @@ func Uint64ToIndex(u uint64) []byte {
 }
 
 // HashPubKBytes returns the bytes representation of the Poseidon hash of the
-// given PublicKey, that will be used as a leaf value in the MerkleTree
-func HashPubKBytes(pubK *babyjub.PublicKey) ([]byte, error) {
-	pubKHash, err := poseidon.Hash([]*big.Int{pubK.X, pubK.Y})
+// given PublicKey together with its weight, that will be used as a leaf value
+// in the MerkleTree. If no weight is provided (eg. nil), a weight of 1 is
+// assigned.
+func HashPubKBytes(pubK *babyjub.PublicKey, weight *big.Int) ([]byte, error) {
+	if weight == nil {
+		weight = big.NewInt(1)
+	}
+	pubKHash, err := poseidon.Hash([]*big.Int{pubK.X, pubK.Y, weight})
 	if err != nil {
 		return nil, err
 	}
@@ -215,4 +223,27 @@ func HexToPublicKey(h string) (*babyjub.PublicKey, error) {
 	}
 
 	return pubK, nil
+}
+
+// IndexAndWeightToBytes returns a byte array containing the given index and
+// weight, encoded as:
+// [   8   |   32   ]
+// [ index | weight ]
+func IndexAndWeightToBytes(index uint64, weight *big.Int) []byte {
+	indexBytes := Uint64ToIndex(index)
+	weightBytes := arbo.BigIntToBytes(32, weight) //nolint:gomnd
+	var b [8 + 32]byte
+	copy(b[:8], indexBytes)
+	copy(b[8:], weightBytes)
+	return b[:]
+}
+
+// BytesToIndexAndWeight returns the index and weight from the given byte array
+func BytesToIndexAndWeight(b []byte) (uint64, *big.Int, error) {
+	if len(b) != 40 { //nolint:gomnd // 40=8+32
+		return 0, nil, fmt.Errorf("len(b) should be 40")
+	}
+	index := binary.LittleEndian.Uint64(b[:8])
+	weight := arbo.BytesToBigInt(b[8:])
+	return index, weight, nil
 }
