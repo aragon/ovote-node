@@ -283,9 +283,10 @@ func TestGetProcessInfo(t *testing.T) {
 	resultsPublishingWindow := uint64(20)
 	minParticipation := uint8(20)
 	minPositiveVotes := uint8(60)
+	typ := uint8(1)
 	err := sqlite.StoreProcess(processID, censusRoot, censusSize,
 		ethBlockNum, ethEndBlockNum, resultsPublishingWindow, minParticipation,
-		minPositiveVotes)
+		minPositiveVotes, typ)
 	c.Assert(err, qt.IsNil)
 
 	process := doGetProcess(c, a, processID)
@@ -339,9 +340,10 @@ func TestBuildCensusAndPostVoteHandler(t *testing.T) {
 	resultsPublishingWindow := uint64(20)
 	minParticipation := uint8(20)
 	minPositiveVotes := uint8(60)
+	typ := uint8(1)
 	err := sqlite.StoreProcess(processID, censusRoot, censusSize,
 		ethBlockNum, ethEndBlockNum, resultsPublishingWindow, minParticipation,
-		minPositiveVotes)
+		minPositiveVotes, typ)
 	c.Assert(err, qt.IsNil)
 
 	// prepare the votes
@@ -383,9 +385,10 @@ func TestPostVoteHandler(t *testing.T) {
 	resultsPublishingWindow := uint64(20)
 	minParticipation := uint8(20)
 	minPositiveVotes := uint8(60)
+	typ := uint8(1)
 	err = sqlite.StoreProcess(processID, censusRoot, censusSize,
 		ethBlockNum, ethEndBlockNum, resultsPublishingWindow, minParticipation,
-		minPositiveVotes)
+		minPositiveVotes, typ)
 	c.Assert(err, qt.IsNil)
 
 	// check that getting the process status by the API returns status=On

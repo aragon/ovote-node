@@ -18,7 +18,7 @@ import (
 
 const (
 	// eventNewProcessLen defines the length of an event log of newProcess
-	eventNewProcessLen = 288 // = 32*9
+	eventNewProcessLen = 320 // = 32*10
 	// eventResultPublishedLen defines the length of an event log of
 	// resultPublished
 	eventResultPublishedLen = 160 // = 32*5
@@ -225,7 +225,7 @@ func (c *Client) processEventLog(eventLog types.Log) error {
 		// store the process in the db
 		err = c.db.StoreProcess(e.ProcessID, e.CensusRoot[:], e.CensusSize,
 			eventLog.BlockNumber, e.ResPubStartBlock, e.ResPubWindow,
-			e.MinParticipation, e.MinPositiveVotes)
+			e.MinParticipation, e.MinPositiveVotes, e.Type)
 		if err != nil {
 			return fmt.Errorf("error storing new process: %x, err: %s",
 				eventLog.Data, err)
@@ -249,6 +249,7 @@ func (c *Client) processEventLog(eventLog types.Log) error {
 		log.Debugf("Event: (blocknum: %d) %s",
 			eventLog.BlockNumber, e)
 	default:
+		fmt.Printf("LOG in block %d:\n %x \n", eventLog.BlockNumber, eventLog.Data)
 		return fmt.Errorf("unrecognized event log with length %d", l)
 	}
 
@@ -266,15 +267,16 @@ type eventNewProcess struct {
 	ResPubWindow     uint64
 	MinParticipation uint8
 	MinPositiveVotes uint8
+	Type             uint8
 }
 
 // String implements the String interface for eventNewProcess
 func (e *eventNewProcess) String() string {
 	return fmt.Sprintf("[eventNewProcess]: Creator %s, ProcessID: %d, TxHash: %s,"+
-		" CensusRoot: %s, CensusSize: %d, ResPubStartBlock: %d, ResPubWindow: %d,"+
-		" MinParticipation: %d, MinPositiveVotes: %d",
+		" CensusRoot: %s, Type: %d, CensusSize: %d, ResPubStartBlock: %d,"+
+		" ResPubWindow: %d, MinParticipation: %d, MinPositiveVotes: %d",
 		e.Creator, e.ProcessID, hex.EncodeToString(e.TxHash[:]),
-		arbo.BytesToBigInt(e.CensusRoot[:]), e.CensusSize,
+		arbo.BytesToBigInt(e.CensusRoot[:]), e.Type, e.CensusSize,
 		e.ResPubStartBlock, e.ResPubWindow, e.MinParticipation,
 		e.MinPositiveVotes)
 }
@@ -288,9 +290,9 @@ func parseEventNewProcess(d []byte) (*eventNewProcess, error) {
 
 	// contract event:
 	// event EventProcessCreated(address creator, uint256 id,uint256
-	// transactionHash,  uint256 censusRoot, uint64 censusSize, uint64
-	// resPubStartBlock, uint64 resPubWindow, uint8 minParticipation, uint8
-	// minPositiveVotes);
+	// transactionHash,  uint256 censusRoot, uint8 typ, uint64 censusSize,
+	// uint64 resPubStartBlock, uint64 resPubWindow, uint8
+	// minParticipation, uint8 minPositiveVotes);
 
 	creatorBytes := d[:32]
 	e.Creator = common.BytesToAddress(creatorBytes[12:32])
@@ -316,6 +318,8 @@ func parseEventNewProcess(d []byte) (*eventNewProcess, error) {
 
 	e.MinParticipation = uint8(d[255])
 	e.MinPositiveVotes = uint8(d[287])
+	e.Type = uint8(d[319])
+
 	return &e, nil
 }
 

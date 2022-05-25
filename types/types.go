@@ -101,6 +101,8 @@ type Process struct {
 	// MinPositiveVotes sets a threshold of minimum votes supporting the
 	// proposal, over all the processed votes (% over nVotes)
 	MinPositiveVotes uint8
+	// Type of process, where 0: multisig, 1: referendum
+	Type uint8
 	// InsertedDatetime contains the datetime of when the process was
 	// inserted in the db
 	InsertedDatetime time.Time
