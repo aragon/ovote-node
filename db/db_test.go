@@ -119,6 +119,46 @@ func TestProcessStatus(t *testing.T) {
 	c.Assert(status, qt.Equals, types.ProcessStatusProofGenerated)
 }
 
+func TestProcessProofID(t *testing.T) {
+	c := qt.New(t)
+
+	db, err := sql.Open("sqlite3", filepath.Join(c.TempDir(), "testdb.sqlite3"))
+	c.Assert(err, qt.IsNil)
+
+	sqlite := NewSQLite(db)
+
+	err = sqlite.Migrate()
+	c.Assert(err, qt.IsNil)
+
+	// prepare the process
+	processID := uint64(123)
+	censusRoot := []byte("censusRoot")
+	censusSize := uint64(100)
+	ethBlockNum := uint64(10)
+	resPubStartBlock := uint64(20)
+	resPubWindow := uint64(20)
+	minParticipation := uint8(60)
+	minPositiveVotes := uint8(20)
+	typ := uint8(1)
+
+	err = sqlite.StoreProcess(processID, censusRoot, censusSize,
+		ethBlockNum, resPubStartBlock, resPubWindow, minParticipation,
+		minPositiveVotes, typ)
+	c.Assert(err, qt.IsNil)
+
+	proofID, err := sqlite.GetProcessProofID(processID)
+	c.Assert(err, qt.IsNil)
+	c.Assert(proofID, qt.Equals, uint64(0))
+
+	// update status to ProofGen
+	err = sqlite.SetProcessProofID(processID, 42)
+	c.Assert(err, qt.IsNil)
+
+	proofID, err = sqlite.GetProcessProofID(processID)
+	c.Assert(err, qt.IsNil)
+	c.Assert(proofID, qt.Equals, uint64(42))
+}
+
 func TestProcessesByStatus(t *testing.T) {
 	c := qt.New(t)
 

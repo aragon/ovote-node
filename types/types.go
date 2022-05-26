@@ -77,6 +77,9 @@ type VotePackage struct {
 type Process struct {
 	// ID is determined by the SmartContract, is unique for each Process
 	ID uint64
+	// ProofID determines the ID assigned by the proof-server, is used to
+	// retrieve the proof
+	ProofID uint64
 	// CensusRoot indicates the CensusRoot of the Process, the same
 	// CensusRoot can be reused by different Processes
 	CensusRoot []byte

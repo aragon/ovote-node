@@ -41,6 +41,7 @@ func (r *SQLite) Migrate() error {
 	CREATE TABLE IF NOT EXISTS processes(
 		id INTEGER NOT NULL PRIMARY KEY UNIQUE,
 		status INTEGER NOT NULL,
+		proofid INTEGER NOT NULL,
 		censusRoot BLOB NOT NULL,
 		censusSize INTEGER NOT NULL,
 		ethBlockNum INTEGER NOT NULL,
@@ -101,6 +102,7 @@ func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
 	INSERT INTO processes(
 		id,
 		status,
+		proofid,
 		censusRoot,
 		censusSize,
 		ethBlockNum,
@@ -110,7 +112,7 @@ func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
 		minPositiveVotes,
 		type,
 		insertedDatetime
-	) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+	) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`
 
 	stmt, err := r.db.Prepare(sqlQuery)
@@ -119,9 +121,10 @@ func (r *SQLite) StoreProcess(id uint64, censusRoot []byte, censusSize,
 	}
 	defer stmt.Close() //nolint:errcheck
 
-	_, err = stmt.Exec(id, types.ProcessStatusOn, censusRoot, censusSize,
-		ethBlockNum, resPubStartBlock, resPubWindow, minParticipation,
-		minPositiveVotes, typ)
+	defaultProofID := 0
+	_, err = stmt.Exec(id, types.ProcessStatusOn, defaultProofID, censusRoot,
+		censusSize, ethBlockNum, resPubStartBlock, resPubWindow,
+		minParticipation, minPositiveVotes, typ)
 	if err != nil {
 		return err
 	}
@@ -163,15 +166,52 @@ func (r *SQLite) GetProcessStatus(id uint64) (types.ProcessStatus, error) {
 	return types.ProcessStatus(status), nil
 }
 
+// SetProcessProofID sets the given proofID to the process with the given id.
+// This method should be called only from a prover-server response.
+func (r *SQLite) SetProcessProofID(id uint64, proofID uint64) error {
+	sqlQuery := `
+	UPDATE processes SET proofid=? WHERE id=?
+	`
+
+	stmt, err := r.db.Prepare(sqlQuery)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close() //nolint:errcheck
+
+	_, err = stmt.Exec(proofID, id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetProcessProofID returns the ProofID of the given process ID. If the
+// ProofID equals 0, it means that no ProofID has been set yet.
+func (r *SQLite) GetProcessProofID(id uint64) (uint64, error) {
+	row := r.db.QueryRow("SELECT proofid FROM processes WHERE id = ?", id)
+
+	var proofID uint64
+	err := row.Scan(&proofID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("Process ID:%d, does not exist in the db", id)
+		}
+		return 0, err
+	}
+	return proofID, nil
+}
+
 // ReadProcessByID reads the types.Process by the given id
 func (r *SQLite) ReadProcessByID(id uint64) (*types.Process, error) {
 	row := r.db.QueryRow("SELECT * FROM processes WHERE id = ?", id)
 
 	var process types.Process
-	err := row.Scan(&process.ID, &process.Status, &process.CensusRoot,
-		&process.CensusSize, &process.EthBlockNum, &process.ResPubStartBlock,
-		&process.ResPubWindow, &process.MinParticipation,
-		&process.MinPositiveVotes, &process.Type, &process.InsertedDatetime)
+	err := row.Scan(&process.ID, &process.Status, &process.ProofID,
+		&process.CensusRoot, &process.CensusSize, &process.EthBlockNum,
+		&process.ResPubStartBlock, &process.ResPubWindow,
+		&process.MinParticipation, &process.MinPositiveVotes, &process.Type,
+		&process.InsertedDatetime)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("Process ID:%d, does not exist in the db", id)
@@ -198,7 +238,7 @@ func (r *SQLite) ReadProcesses() ([]types.Process, error) {
 	var processes []types.Process
 	for rows.Next() {
 		process := types.Process{}
-		err = rows.Scan(&process.ID, &process.Status,
+		err = rows.Scan(&process.ID, &process.Status, &process.ProofID,
 			&process.CensusRoot, &process.CensusSize, &process.EthBlockNum,
 			&process.ResPubStartBlock, &process.ResPubWindow,
 			&process.MinParticipation, &process.MinPositiveVotes,
@@ -255,7 +295,7 @@ func (r *SQLite) ReadProcessesByResPubStartBlock(resPubStartBlock uint64) (
 	var processes []types.Process
 	for rows.Next() {
 		process := types.Process{}
-		err = rows.Scan(&process.ID, &process.Status,
+		err = rows.Scan(&process.ID, &process.Status, &process.ProofID,
 			&process.CensusRoot, &process.CensusSize, &process.EthBlockNum,
 			&process.ResPubStartBlock, &process.ResPubWindow,
 			&process.MinParticipation, &process.MinPositiveVotes,
@@ -285,7 +325,7 @@ func (r *SQLite) ReadProcessesByStatus(status types.ProcessStatus) ([]types.Proc
 	var processes []types.Process
 	for rows.Next() {
 		process := types.Process{}
-		err = rows.Scan(&process.ID, &process.Status,
+		err = rows.Scan(&process.ID, &process.Status, &process.ProofID,
 			&process.CensusRoot, &process.CensusSize, &process.EthBlockNum,
 			&process.ResPubStartBlock, &process.ResPubWindow,
 			&process.MinParticipation, &process.MinPositiveVotes,
