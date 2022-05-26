@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aragon/zkmultisig-node/db"
+	"github.com/aragon/zkmultisig-node/prover"
 	"github.com/aragon/zkmultisig-node/types"
 	"github.com/vocdoni/arbo"
 	"go.vocdoni.io/dvote/log"
@@ -18,11 +19,12 @@ const syncSleepTime = 6
 type VotesAggregator struct {
 	db      *db.SQLite
 	chainID uint64 // determined by config
+	prover  *prover.Client
 }
 
 // New returns a VotesAggregator with the given SQLite db
-func New(sqlite *db.SQLite, chainID uint64) (*VotesAggregator, error) {
-	return &VotesAggregator{db: sqlite, chainID: chainID}, nil
+func New(sqlite *db.SQLite, chainID uint64, p *prover.Client) (*VotesAggregator, error) {
+	return &VotesAggregator{db: sqlite, chainID: chainID, prover: p}, nil
 }
 
 // SyncProcesses actively checks if there are any processes closed, to trigger
@@ -82,8 +84,8 @@ func (va *VotesAggregator) AddVote(processID uint64, votePackage types.VotePacka
 	return va.db.StoreVotePackage(processID, votePackage)
 }
 
-// GenerateZKInputs will generate the zkInputs for the given processID
-func (va *VotesAggregator) GenerateZKInputs(processID uint64, nMaxVotes,
+// generateZKInputs will generate the zkInputs for the given processID
+func (va *VotesAggregator) generateZKInputs(processID uint64, nMaxVotes,
 	nLevels /* tmp */ int) (*types.ZKInputs, error) {
 	// TODO TMP, nMaxVotes & nLevels will be defined by the compiled circuits
 	z := types.NewZKInputs(nMaxVotes, nLevels)
@@ -158,4 +160,28 @@ func (va *VotesAggregator) GenerateZKInputs(processID uint64, nMaxVotes,
 	}
 
 	return z, nil
+}
+
+// GenerateProof triggers proof generation through the prover client
+func (va *VotesAggregator) GenerateProof(processID uint64) error {
+	// TODO check that process is ready to generate proof
+
+	// TODO WIP initially support only for census of 100 voters
+	zki, err := va.generateZKInputs(processID, 128, 7)
+	if err != nil {
+		return err
+	}
+
+	// va.prover.GenProof
+	proofID, err := va.prover.GenProof(zki)
+	if err != nil {
+		return err
+	}
+
+	// store proofID in db for the processID
+	err = va.db.SetProcessProofID(processID, proofID)
+	if err != nil {
+		return err
+	}
+	return nil
 }

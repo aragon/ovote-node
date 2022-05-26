@@ -19,7 +19,7 @@ func TestGenProof(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	p := New(ts.URL)
+	p := NewClient(ts.URL)
 	zki := types.NewZKInputs(2, 2)
 	pID, err := p.GenProof(zki)
 	c.Assert(err, qt.IsNil)
@@ -31,7 +31,7 @@ func TestGenProof(t *testing.T) {
 	ts = httptest.NewServer(r)
 	defer ts.Close()
 
-	p = New(ts.URL)
+	p = NewClient(ts.URL)
 	_, err = p.GenProof(zki)
 	c.Assert(err, qt.Not(qt.IsNil))
 	c.Assert(err.Error(), qt.Equals, "expected error msg")

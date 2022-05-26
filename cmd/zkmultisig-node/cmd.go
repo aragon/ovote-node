@@ -9,6 +9,7 @@ import (
 	"github.com/aragon/zkmultisig-node/censusbuilder"
 	"github.com/aragon/zkmultisig-node/db"
 	"github.com/aragon/zkmultisig-node/eth"
+	"github.com/aragon/zkmultisig-node/prover"
 	"github.com/aragon/zkmultisig-node/votesaggregator"
 	"github.com/ethereum/go-ethereum/common"
 	_ "github.com/mattn/go-sqlite3"
@@ -20,10 +21,10 @@ import (
 
 // Config contains the main configuration parameters of the node
 type Config struct {
-	dir, logLevel, port            string
-	startScanBlock                 uint64
-	censusBuilder, votesAggregator bool
-	contractAddr, ethURL           string
+	dir, logLevel, port             string
+	startScanBlock                  uint64
+	censusBuilder, votesAggregator  bool
+	contractAddr, ethURL, proverURL string
 }
 
 func main() {
@@ -43,6 +44,7 @@ func main() {
 	flag.StringVar(&config.contractAddr, "addr", "", "zkMultisig contract address")
 	flag.Uint64Var(&config.startScanBlock, "block", 0,
 		"Start scanning block (usually the block where the zkMultisig contract was deployed)")
+	flag.StringVar(&config.proverURL, "prover", "127.0.0.1:9000", "prover url")
 	// TODO add flag for configurable threshold of minimum census size (to prevent small censuses)
 
 	flag.CommandLine.SortFlags = false
@@ -114,8 +116,10 @@ func main() {
 		}
 		log.Infof("Eth scanning from block: %d", lastSyncBlockNum)
 
+		proverClient := prover.NewClient(config.proverURL)
+
 		// prepare VotesAggregator
-		votesAggregator, err = votesaggregator.New(sqlite, ethC.ChainID)
+		votesAggregator, err = votesaggregator.New(sqlite, ethC.ChainID, proverClient)
 		if err != nil {
 			log.Fatal(err)
 		}

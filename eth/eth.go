@@ -174,6 +174,8 @@ func (c *Client) syncHistory(startBlock uint64) error {
 
 	// update the processes which their ResPubStartBlock has been reached
 	// (and that they were still in status ProcessStatusOn
+	// TODO maybe do not froze process, and allow it to accept votes still
+	// in results publishing phase
 	err = c.db.FrozeProcessesByCurrentBlockNum(currBlockNum.Uint64())
 	if err != nil {
 		log.Error(err)

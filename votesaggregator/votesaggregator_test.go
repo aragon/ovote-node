@@ -24,7 +24,7 @@ func baseTestVotesAggregator(c *qt.C, chainID, processID uint64, nVotes, ratio i
 	err = sqlite.Migrate()
 	c.Assert(err, qt.IsNil)
 
-	va, err := New(sqlite, chainID)
+	va, err := New(sqlite, chainID, nil)
 	c.Assert(err, qt.IsNil)
 
 	// prepare the census
@@ -105,7 +105,7 @@ func testGenerateZKInputs(c *qt.C, nMaxVotes, nLevels, nVotes, ratio int) {
 		c.Assert(err, qt.IsNil)
 	}
 
-	zki, err := va.GenerateZKInputs(processID, nMaxVotes, nLevels)
+	zki, err := va.generateZKInputs(processID, nMaxVotes, nLevels)
 	c.Assert(err, qt.IsNil)
 	s, err := json.Marshal(zki)
 	c.Assert(err, qt.IsNil)

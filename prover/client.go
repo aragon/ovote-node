@@ -29,10 +29,10 @@ type Client struct {
 	c   *http.Client
 }
 
-// New returns a new Client for the given proverURL
-func New(proverURL string) Client {
+// NewClient returns a new Client for the given proverURL
+func NewClient(proverURL string) *Client {
 	httpClient := &http.Client{}
-	return Client{
+	return &Client{
 		url: proverURL,
 		c:   httpClient,
 	}

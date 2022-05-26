@@ -47,7 +47,7 @@ func newTestAPI(c *qt.C, chainID uint64) (API, *db.SQLite) {
 	err = sqlite.Migrate()
 	c.Assert(err, qt.IsNil)
 
-	va, err := votesaggregator.New(sqlite, chainID)
+	va, err := votesaggregator.New(sqlite, chainID, nil)
 	c.Assert(err, qt.IsNil)
 
 	return API{r: r, cb: cb, va: va}, sqlite
