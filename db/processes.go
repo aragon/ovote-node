@@ -73,7 +73,7 @@ func (r *SQLite) GetProcessStatus(id uint64) (types.ProcessStatus, error) {
 	err := row.Scan(&status)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, fmt.Errorf("Process ID:%d, does not exist in the db", id)
+			return 0, fmt.Errorf("ProcessID: %d, does not exist in the db", id)
 		}
 		return 0, err
 	}
@@ -91,7 +91,7 @@ func (r *SQLite) ReadProcessByID(id uint64) (*types.Process, error) {
 		&process.MinPositiveVotes, &process.Type, &process.InsertedDatetime)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("Process ID:%d, does not exist in the db", id)
+			return nil, fmt.Errorf("ProcessID: %d, does not exist in the db", id)
 		}
 		return nil, err
 	}

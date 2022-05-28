@@ -80,6 +80,7 @@ func (r *SQLite) Migrate() error {
 		proof BLOB NOT NULL,
 		publicInputs BLOB NOT NULL,
 		insertedDatetime DATETIME,
+		proofAddedDatetime DATETIME,
 		processID INTEGER NOT NULL,
 		FOREIGN KEY(processID) REFERENCES processes(id)
 	);

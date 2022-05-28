@@ -7,20 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
-	"math/big"
 	"net/http"
 
 	"github.com/aragon/zkmultisig-node/types"
 )
-
-// Proof represents a Groth16 zkSNARK proof
-type Proof struct {
-	// TODO maybe move this to types package
-	A        [3]*big.Int    `json:"pi_a"`
-	B        [3][2]*big.Int `json:"pi_b"`
-	C        [3]*big.Int    `json:"pi_c"`
-	Protocol string         `json:"protocol"`
-}
 
 // Client implements the prover http client, used to make requests to the
 // prover server
@@ -45,6 +35,11 @@ type errorMsg struct {
 // GenProof sends the given ZKInputs to the prover-server to trigger the
 // zkProof generation
 func (c *Client) GenProof(zki *types.ZKInputs) (uint64, error) {
+	// TODO check if there exists already a proof in db for the processID.
+	// if so, check if time since insertedDatetime is bigger than T (eg. 10
+	// minutes), if so, remove it and continue this function. If not,
+	// return error saying that proof is still not ready
+
 	jsonZKI, err := json.Marshal(zki)
 	if err != nil {
 		return 0, err
@@ -75,4 +70,10 @@ func (c *Client) GenProof(zki *types.ZKInputs) (uint64, error) {
 	}
 
 	return m["id"], nil
+}
+
+// GetProof retrieves the genereted proof (if already generated) from the
+// prover-server for the given proofID
+func (c *Client) GetProof(proofID uint64) (*types.ProofInDB, error) {
+	return nil, nil
 }

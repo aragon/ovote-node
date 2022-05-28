@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"testing"
+	"time"
 
 	qt "github.com/frankban/quicktest"
 )
@@ -35,40 +36,60 @@ func TestProof(t *testing.T) {
 		minPositiveVotes, typ)
 	c.Assert(err, qt.IsNil)
 
-	proofs, err := sqlite.GetProofsByProcessID(processID)
-	c.Assert(err, qt.IsNil)
-	c.Assert(len(proofs), qt.Equals, 0)
+	proof, err := sqlite.GetProofByProcessID(processID)
+	c.Assert(err.Error(), qt.Equals, "ProcessID: 123, does not exist in the db")
+	c.Assert(proof, qt.IsNil)
 
 	// expect no error, despite the ProofID is not stored yet
-	err = sqlite.AddProofToProofID(processID, 42, []byte("testproof"))
+	err = sqlite.AddProofToProofID(processID, 42, []byte("testproof"), []byte("publicInputs"))
 	c.Assert(err, qt.IsNil)
 
-	proofs, err = sqlite.GetProofsByProcessID(processID)
-	c.Assert(err, qt.IsNil)
-	c.Assert(len(proofs), qt.Equals, 0)
+	proof, err = sqlite.GetProofByProcessID(processID)
+	c.Assert(err.Error(), qt.Equals, "ProcessID: 123, does not exist in the db")
+	c.Assert(proof, qt.IsNil)
 
 	err = sqlite.StoreProofID(processID, 42)
 	c.Assert(err, qt.IsNil)
 
-	proofs, err = sqlite.GetProofsByProcessID(processID)
+	proof, err = sqlite.GetProofByProcessID(processID)
 	c.Assert(err, qt.IsNil)
-	c.Assert(len(proofs), qt.Equals, 1)
-	c.Assert(proofs[0].Proof, qt.DeepEquals, []byte{})
+	c.Assert(proof, qt.Not(qt.IsNil))
+	c.Assert(proof.Proof, qt.DeepEquals, []byte{})
+	c.Assert(proof.PublicInputs, qt.DeepEquals, []byte{})
+	// expect proofAddedDatetime to not be set yet
+	c.Assert(proof.ProofAddedDatetime, qt.Equals, time.Time{})
 
-	err = sqlite.AddProofToProofID(processID, 42, []byte("testproof"))
-	c.Assert(err, qt.IsNil)
-
-	proofs, err = sqlite.GetProofsByProcessID(processID)
-	c.Assert(err, qt.IsNil)
-	c.Assert(len(proofs), qt.Equals, 1)
-	c.Assert(proofs[0].Proof, qt.DeepEquals, []byte("testproof"))
-	c.Assert(proofs[0].PublicInputs, qt.DeepEquals, []byte{}) // no publicInputs yet
-
-	// add PublicInputs
-	err = sqlite.AddPublicInputsToProofID(processID, 42, []byte("testPublicInputs"))
+	err = sqlite.AddProofToProofID(processID, 42, []byte("testproof"), []byte("publicInputs"))
 	c.Assert(err, qt.IsNil)
 
-	proofs, err = sqlite.GetProofsByProcessID(processID)
+	proof, err = sqlite.GetProofByProcessID(processID)
 	c.Assert(err, qt.IsNil)
-	c.Assert(proofs[0].PublicInputs, qt.DeepEquals, []byte("testPublicInputs"))
+	c.Assert(proof, qt.Not(qt.IsNil))
+	c.Assert(proof.Proof, qt.DeepEquals, []byte("testproof"))
+	c.Assert(proof.PublicInputs, qt.DeepEquals, []byte("publicInputs")) // no publicInputs yet
+	c.Assert(proof.ProofAddedDatetime, qt.Not(qt.Equals), time.Time{})
+
+	time.Sleep(1 * time.Second)
+
+	// store a different proofID for the same processID
+	err = sqlite.StoreProofID(processID, 43)
+	c.Assert(err, qt.IsNil)
+
+	// get the Proof for ProcessID, expect the proof to be the proofID=42
+	proof, err = sqlite.GetProofByProcessID(processID)
+	c.Assert(err, qt.IsNil)
+	c.Assert(proof.ProofID, qt.Equals, uint64(42))
+
+	// store the proofID=43 proof & inputs, and expect to get it when
+	// getting the proof by processID
+	err = sqlite.AddProofToProofID(processID, 43, []byte("testproof"), []byte("publicInputs"))
+	c.Assert(err, qt.IsNil)
+	proof, err = sqlite.GetProofByProcessID(processID)
+	c.Assert(err, qt.IsNil)
+	c.Assert(proof.ProofID, qt.Equals, uint64(43))
+
+	proofs, err := sqlite.GetProofsByProcessID(processID)
+	c.Assert(err, qt.IsNil)
+	c.Assert(proofs[0].ProofID, qt.Equals, uint64(43))
+	c.Assert(proofs[1].ProofID, qt.Equals, uint64(42))
 }

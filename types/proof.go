@@ -7,11 +7,12 @@ import (
 
 // ProofInDB contains the proof data from an entry in the db
 type ProofInDB struct {
-	ProofID          uint64
-	Proof            []byte
-	PublicInputs     []byte
-	InsertedDatetime time.Time
-	ProcessID        uint64
+	ProofID            uint64
+	Proof              []byte
+	PublicInputs       []byte
+	InsertedDatetime   time.Time
+	ProofAddedDatetime time.Time
+	ProcessID          uint64
 }
 
 // Proof represents a Groth16 zkSNARK proof

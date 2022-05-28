@@ -1,7 +1,10 @@
 package db
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/aragon/zkmultisig-node/types"
 )
@@ -15,8 +18,9 @@ func (r *SQLite) StoreProofID(processID, proofID uint64) error {
 		proof,
 		publicInputs,
 		insertedDatetime,
+		proofAddedDatetime,
 		processID
-	) values(?, ?, ?, CURRENT_TIMESTAMP, ?)
+	) values(?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
 	`
 
 	stmt, err := r.db.Prepare(sqlQuery)
@@ -26,7 +30,7 @@ func (r *SQLite) StoreProofID(processID, proofID uint64) error {
 	defer stmt.Close() //nolint:errcheck
 
 	emptyBytes := []byte{}
-	_, err = stmt.Exec(proofID, emptyBytes, emptyBytes, processID)
+	_, err = stmt.Exec(proofID, emptyBytes, emptyBytes, time.Time{}, processID)
 	if err != nil {
 		if err.Error() == "FOREIGN KEY constraint failed" {
 			return fmt.Errorf("Can not store Proof, ProcessID=%d does not exist",
@@ -37,13 +41,14 @@ func (r *SQLite) StoreProofID(processID, proofID uint64) error {
 	return nil
 }
 
-// AddProofToProofID stores the proof bytes for the given processID and
-// proofID. Important: if the processID & proofID does not exist in the db yet,
-// this method will not return any error, but will not store the data.
-func (r *SQLite) AddProofToProofID(processID, proofID uint64, proof []byte) error {
+// AddProofToProofID stores the proof & publicInputs bytes for the given
+// processID and proofID. Important: if the processID & proofID does not exist
+// in the db yet, this method will not return any error, but will not store the
+// data.
+func (r *SQLite) AddProofToProofID(processID, proofID uint64, proof, publicInputs []byte) error {
 	sqlQuery := `
 	UPDATE proofs
-	SET proof = ?
+	SET proof = ?, publicInputs = ?, proofAddedDatetime = CURRENT_TIMESTAMP
 	WHERE (processID = ? AND proofID = ?)
 	`
 
@@ -53,39 +58,37 @@ func (r *SQLite) AddProofToProofID(processID, proofID uint64, proof []byte) erro
 	}
 	defer stmt.Close() //nolint:errcheck
 
-	_, err = stmt.Exec(proof, processID, proofID)
+	_, err = stmt.Exec(proof, publicInputs, processID, proofID)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// AddPublicInputsToProofID stores the publicInputs bytes to the given proofID
-// & processID
-func (r *SQLite) AddPublicInputsToProofID(processID, proofID uint64, publicInputs []byte) error {
-	sqlQuery := `
-	UPDATE proofs
-	SET publicInputs = ?
-	WHERE (processID = ? AND proofID = ?)
-	`
+// GetProofByProcessID returns the last stored proof (by proof & publicInputs
+// addition time) for a given ProcessID
+func (r *SQLite) GetProofByProcessID(processID uint64) (*types.ProofInDB, error) {
+	row := r.db.QueryRow(
+		"SELECT * FROM proofs WHERE processID = ? ORDER BY proofAddedDatetime DESC LIMIT 1;",
+		processID)
 
-	stmt, err := r.db.Prepare(sqlQuery)
+	var proof types.ProofInDB
+	err := row.Scan(&proof.ProofID, &proof.Proof, &proof.PublicInputs,
+		&proof.InsertedDatetime, &proof.ProofAddedDatetime, &proof.ProcessID)
 	if err != nil {
-		return err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil,
+				fmt.Errorf("ProcessID: %d, does not exist in the db", processID)
+		}
+		return nil, err
 	}
-	defer stmt.Close() //nolint:errcheck
-
-	_, err = stmt.Exec(publicInputs, processID, proofID)
-	if err != nil {
-		return err
-	}
-	return nil
+	return &proof, nil
 }
 
 // GetProofsByProcessID returns the stored proofs for a given ProcessID
 func (r *SQLite) GetProofsByProcessID(processID uint64) ([]types.ProofInDB, error) {
 	rows, err := r.db.Query(
-		"SELECT * FROM proofs WHERE processID = ?",
+		"SELECT * FROM proofs WHERE processID = ? ORDER BY proofAddedDatetime DESC",
 		processID)
 	if err != nil {
 		return nil, err
@@ -96,7 +99,8 @@ func (r *SQLite) GetProofsByProcessID(processID uint64) ([]types.ProofInDB, erro
 	for rows.Next() {
 		proof := types.ProofInDB{}
 		err = rows.Scan(&proof.ProofID, &proof.Proof,
-			&proof.PublicInputs, &proof.InsertedDatetime, &proof.ProcessID)
+			&proof.PublicInputs, &proof.InsertedDatetime,
+			&proof.ProofAddedDatetime, &proof.ProcessID)
 		if err != nil {
 			return nil, err
 		}

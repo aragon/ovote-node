@@ -1,6 +1,7 @@
 package votesaggregator
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"math/big"
@@ -185,4 +186,20 @@ func (va *VotesAggregator) GenerateProof(processID uint64) error {
 		return err
 	}
 	return nil
+}
+
+// GetProof returns (if has been computed) the proof for the processID
+func (va *VotesAggregator) GetProof(processID uint64) (*types.ProofInDB, error) {
+	// first check if proof is already stored in the db
+	proof, err := va.db.GetProofByProcessID(processID)
+	if err != nil {
+		return nil, err
+	}
+
+	// if proof does not exist yet in the db, try getting it from the
+	// prover-server
+	if bytes.Equal(proof.Proof, []byte{}) || bytes.Equal(proof.PublicInputs, []byte{}) {
+		return va.prover.GetProof(processID)
+	}
+	return proof, nil
 }
