@@ -78,6 +78,7 @@ func (r *SQLite) Migrate() error {
 	CREATE TABLE IF NOT EXISTS proofs(
 		proofid INTEGER NOT NULL PRIMARY KEY UNIQUE,
 		proof BLOB NOT NULL,
+		publicInputs BLOB NOT NULL,
 		insertedDatetime DATETIME,
 		processID INTEGER NOT NULL,
 		FOREIGN KEY(processID) REFERENCES processes(id)

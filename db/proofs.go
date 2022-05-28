@@ -13,9 +13,10 @@ func (r *SQLite) StoreProofID(processID, proofID uint64) error {
 	INSERT INTO proofs(
 		proofid,
 		proof,
+		publicInputs,
 		insertedDatetime,
 		processID
-	) values(?, ?, CURRENT_TIMESTAMP, ?)
+	) values(?, ?, ?, CURRENT_TIMESTAMP, ?)
 	`
 
 	stmt, err := r.db.Prepare(sqlQuery)
@@ -24,11 +25,12 @@ func (r *SQLite) StoreProofID(processID, proofID uint64) error {
 	}
 	defer stmt.Close() //nolint:errcheck
 
-	emptyProof := []byte{}
-	_, err = stmt.Exec(proofID, emptyProof, processID)
+	emptyBytes := []byte{}
+	_, err = stmt.Exec(proofID, emptyBytes, emptyBytes, processID)
 	if err != nil {
 		if err.Error() == "FOREIGN KEY constraint failed" {
-			return fmt.Errorf("Can not store Proof, ProcessID=%d does not exist", processID)
+			return fmt.Errorf("Can not store Proof, ProcessID=%d does not exist",
+				processID)
 		}
 		return err
 	}
@@ -58,6 +60,28 @@ func (r *SQLite) AddProofToProofID(processID, proofID uint64, proof []byte) erro
 	return nil
 }
 
+// AddPublicInputsToProofID stores the publicInputs bytes to the given proofID
+// & processID
+func (r *SQLite) AddPublicInputsToProofID(processID, proofID uint64, publicInputs []byte) error {
+	sqlQuery := `
+	UPDATE proofs
+	SET publicInputs = ?
+	WHERE (processID = ? AND proofID = ?)
+	`
+
+	stmt, err := r.db.Prepare(sqlQuery)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close() //nolint:errcheck
+
+	_, err = stmt.Exec(publicInputs, processID, proofID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // GetProofsByProcessID returns the stored proofs for a given ProcessID
 func (r *SQLite) GetProofsByProcessID(processID uint64) ([]types.ProofInDB, error) {
 	rows, err := r.db.Query(
@@ -71,8 +95,8 @@ func (r *SQLite) GetProofsByProcessID(processID uint64) ([]types.ProofInDB, erro
 	var proofs []types.ProofInDB
 	for rows.Next() {
 		proof := types.ProofInDB{}
-		err = rows.Scan(&proof.ProofID, &proof.Proof, &proof.InsertedDatetime,
-			&proof.ProcessID)
+		err = rows.Scan(&proof.ProofID, &proof.Proof,
+			&proof.PublicInputs, &proof.InsertedDatetime, &proof.ProcessID)
 		if err != nil {
 			return nil, err
 		}

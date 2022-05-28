@@ -62,4 +62,13 @@ func TestProof(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(proofs), qt.Equals, 1)
 	c.Assert(proofs[0].Proof, qt.DeepEquals, []byte("testproof"))
+	c.Assert(proofs[0].PublicInputs, qt.DeepEquals, []byte{}) // no publicInputs yet
+
+	// add PublicInputs
+	err = sqlite.AddPublicInputsToProofID(processID, 42, []byte("testPublicInputs"))
+	c.Assert(err, qt.IsNil)
+
+	proofs, err = sqlite.GetProofsByProcessID(processID)
+	c.Assert(err, qt.IsNil)
+	c.Assert(proofs[0].PublicInputs, qt.DeepEquals, []byte("testPublicInputs"))
 }

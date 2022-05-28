@@ -9,6 +9,7 @@ import (
 type ProofInDB struct {
 	ProofID          uint64
 	Proof            []byte
+	PublicInputs     []byte
 	InsertedDatetime time.Time
 	ProcessID        uint64
 }
