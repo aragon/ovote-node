@@ -164,7 +164,8 @@ func (va *VotesAggregator) generateZKInputs(processID uint64, nMaxVotes,
 
 // GenerateProof triggers proof generation through the prover client
 func (va *VotesAggregator) GenerateProof(processID uint64) error {
-	// TODO check that process is ready to generate proof
+	// TODO check that process is ready to generate proof (ResPubStartBlock >= currentEthBlock)
+	// if not ready, return error explaining
 
 	// TODO WIP initially support only for census of 100 voters
 	zki, err := va.generateZKInputs(processID, 128, 7)
@@ -179,7 +180,7 @@ func (va *VotesAggregator) GenerateProof(processID uint64) error {
 	}
 
 	// store proofID in db for the processID
-	err = va.db.SetProcessProofID(processID, proofID)
+	err = va.db.StoreProofID(processID, proofID)
 	if err != nil {
 		return err
 	}
