@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/aragon/zkmultisig-node/types"
+	"github.com/aragon/ovote-node/types"
 	"github.com/gin-gonic/gin"
 	flag "github.com/spf13/pflag"
 	"go.vocdoni.io/dvote/db"

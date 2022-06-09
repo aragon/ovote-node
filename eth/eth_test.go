@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aragon/zkmultisig-node/db"
+	"github.com/aragon/ovote-node/db"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	qt "github.com/frankban/quicktest"
@@ -24,7 +24,7 @@ func init() {
 	// block: 6945416
 	// contract addr: 0x79ea1cc5B8BFF0F46E1B98068727Fd02D8EB1aF3
 	flag.StringVar(&ethURL, "ethurl", "", "eth provider url")
-	flag.StringVar(&contractAddr, "addr", "", "zkMultisig contract address")
+	flag.StringVar(&contractAddr, "addr", "", "OVOTE contract address")
 	flag.Uint64Var(&startBlock, "block", 0, "eth block from which to start to sync")
 }
 

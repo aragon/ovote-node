@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/aragon/zkmultisig-node/censusbuilder"
-	"github.com/aragon/zkmultisig-node/types"
-	"github.com/aragon/zkmultisig-node/votesaggregator"
+	"github.com/aragon/ovote-node/censusbuilder"
+	"github.com/aragon/ovote-node/types"
+	"github.com/aragon/ovote-node/votesaggregator"
 	"github.com/gin-gonic/gin"
 	"go.vocdoni.io/dvote/log"
 )

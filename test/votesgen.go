@@ -5,8 +5,8 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/aragon/zkmultisig-node/census"
-	"github.com/aragon/zkmultisig-node/types"
+	"github.com/aragon/ovote-node/census"
+	"github.com/aragon/ovote-node/types"
 	qt "github.com/frankban/quicktest"
 	"github.com/iden3/go-iden3-crypto/babyjub"
 	"github.com/vocdoni/arbo"

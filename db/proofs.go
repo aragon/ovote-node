@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aragon/zkmultisig-node/types"
+	"github.com/aragon/ovote-node/types"
 )
 
 // StoreProofID stores the given proofID for the given processID.  This method

@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/aragon/zkmultisig-node/types"
+	"github.com/aragon/ovote-node/types"
 	qt "github.com/frankban/quicktest"
 	"github.com/gin-gonic/gin"
 )

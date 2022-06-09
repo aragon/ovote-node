@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/aragon/zkmultisig-node/types"
+	"github.com/aragon/ovote-node/types"
 	qt "github.com/frankban/quicktest"
 	"github.com/iden3/go-iden3-crypto/babyjub"
 	"github.com/vocdoni/arbo"

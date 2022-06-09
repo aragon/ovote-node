@@ -1,6 +1,6 @@
 # compat-tests
 
-This directory includes tests that take as inputs the zkInputs generated from Go code (from `votesaggregator` package), and tests that everything fits well with the Circom circuit of the zkMultisig.
+This directory includes tests that take as inputs the zkInputs generated from Go code (from `votesaggregator` package), and tests that everything fits well with the Circom circuit of the OVOTE.
 
 To run this tests:
 ```

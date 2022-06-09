@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aragon/zkmultisig-node/types"
+	"github.com/aragon/ovote-node/types"
 	qt "github.com/frankban/quicktest"
 	_ "github.com/mattn/go-sqlite3"
 )

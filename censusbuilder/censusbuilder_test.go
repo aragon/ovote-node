@@ -3,8 +3,8 @@ package censusbuilder
 import (
 	"testing"
 
-	"github.com/aragon/zkmultisig-node/census"
-	"github.com/aragon/zkmultisig-node/test"
+	"github.com/aragon/ovote-node/census"
+	"github.com/aragon/ovote-node/test"
 	qt "github.com/frankban/quicktest"
 	"github.com/vocdoni/arbo"
 	"go.vocdoni.io/dvote/db"

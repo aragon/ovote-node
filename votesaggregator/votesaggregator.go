@@ -7,9 +7,9 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/aragon/zkmultisig-node/db"
-	"github.com/aragon/zkmultisig-node/prover"
-	"github.com/aragon/zkmultisig-node/types"
+	"github.com/aragon/ovote-node/db"
+	"github.com/aragon/ovote-node/prover"
+	"github.com/aragon/ovote-node/types"
 	"github.com/vocdoni/arbo"
 	"go.vocdoni.io/dvote/log"
 )

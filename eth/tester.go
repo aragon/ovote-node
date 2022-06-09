@@ -1,8 +1,8 @@
 package eth
 
 import (
-	"github.com/aragon/zkmultisig-node/db"
-	"github.com/aragon/zkmultisig-node/types"
+	"github.com/aragon/ovote-node/db"
+	"github.com/aragon/ovote-node/types"
 )
 
 // ensure that TestEthClient implements the eth.ClientInterf interface

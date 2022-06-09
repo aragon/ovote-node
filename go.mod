@@ -1,4 +1,4 @@
-module github.com/aragon/zkmultisig-node
+module github.com/aragon/ovote-node
 
 go 1.17
 

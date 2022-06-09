@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/aragon/zkmultisig-node/test"
-	"github.com/aragon/zkmultisig-node/types"
+	"github.com/aragon/ovote-node/test"
+	"github.com/aragon/ovote-node/types"
 	qt "github.com/frankban/quicktest"
 	"github.com/iden3/go-iden3-crypto/babyjub"
 	_ "github.com/mattn/go-sqlite3"

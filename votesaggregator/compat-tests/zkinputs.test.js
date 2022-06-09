@@ -11,8 +11,8 @@ async function loadCircuit(nMaxVotes, nLevels) {
 		console.log("generating circuit compiled files", nMaxVotes, nLevels);
 		const circuitCode = `
 			pragma circom 2.0.0;
-			include "./node_modules/zkmultisig/circuits/src/zkmultisig.circom";
-			component main {public [chainID, processID, censusRoot, receiptsRoot, nVotes, result, withReceipts]} = zkmultisig(${nMaxVotes}, ${nLevels});
+			include "./node_modules/ovote/circuits/src/ovote.circom";
+			component main {public [chainID, processID, censusRoot, receiptsRoot, nVotes, result, withReceipts]} = ovote(${nMaxVotes}, ${nLevels});
 		`;
 		await fs.writeFileSync(circuitPath, circuitCode, "utf8");
 

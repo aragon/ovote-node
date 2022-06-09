@@ -5,12 +5,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/aragon/zkmultisig-node/api"
-	"github.com/aragon/zkmultisig-node/censusbuilder"
-	"github.com/aragon/zkmultisig-node/db"
-	"github.com/aragon/zkmultisig-node/eth"
-	"github.com/aragon/zkmultisig-node/prover"
-	"github.com/aragon/zkmultisig-node/votesaggregator"
+	"github.com/aragon/ovote-node/api"
+	"github.com/aragon/ovote-node/censusbuilder"
+	"github.com/aragon/ovote-node/db"
+	"github.com/aragon/ovote-node/eth"
+	"github.com/aragon/ovote-node/prover"
+	"github.com/aragon/ovote-node/votesaggregator"
 	"github.com/ethereum/go-ethereum/common"
 	_ "github.com/mattn/go-sqlite3"
 	flag "github.com/spf13/pflag"
@@ -34,16 +34,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	flag.StringVarP(&config.dir, "dir", "d", filepath.Join(home, ".zkmultisig-node"),
+	flag.StringVarP(&config.dir, "dir", "d", filepath.Join(home, ".ovote-node"),
 		"storage data directory")
 	flag.StringVarP(&config.logLevel, "logLevel", "l", "info", "log level (info, debug, warn, error)")
 	flag.StringVarP(&config.port, "port", "p", "8080", "network port for the HTTP API")
 	flag.BoolVarP(&config.censusBuilder, "censusbuilder", "c", false, "CensusBuilder active")
 	flag.BoolVarP(&config.votesAggregator, "votesaggregator", "v", false, "VotesAggregator active")
 	flag.StringVar(&config.ethURL, "eth", "", "web3 provider url")
-	flag.StringVar(&config.contractAddr, "addr", "", "zkMultisig contract address")
+	flag.StringVar(&config.contractAddr, "addr", "", "OVOTE contract address")
 	flag.Uint64Var(&config.startScanBlock, "block", 0,
-		"Start scanning block (usually the block where the zkMultisig contract was deployed)")
+		"Start scanning block (usually the block where the OVOTE contract was deployed)")
 	flag.StringVar(&config.proverURL, "prover", "127.0.0.1:9000", "prover url")
 	// TODO add flag for configurable threshold of minimum census size (to prevent small censuses)
 
@@ -94,7 +94,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		// TODO check that ethC has access to zkMultisig contract address
+		// TODO check that ethC has access to OVOTE contract address
 
 		// set (if not set already) the 'lastSyncBlockNum'
 		// check if lastSyncBlockNum exists in the db

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/aragon/zkmultisig-node/db"
+	"github.com/aragon/ovote-node/db"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -130,7 +130,7 @@ func (c *Client) syncBlocksLive() error {
 	}
 }
 
-// syncEventsLive synchronizes live from the zkmultisig contract events
+// syncEventsLive synchronizes live from the ovote contract events
 func (c *Client) syncEventsLive() error {
 	query := ethereum.FilterQuery{
 		Addresses: []common.Address{c.contractAddr},
@@ -156,7 +156,7 @@ func (c *Client) syncEventsLive() error {
 	}
 }
 
-// syncHistory synchronizes from the zkmultisig contract the events & blockNums
+// syncHistory synchronizes from the ovote contract the events & blockNums
 // from the given block to the current block height.
 func (c *Client) syncHistory(startBlock uint64) error {
 	header, err := c.client.HeaderByNumber(context.Background(), nil)
@@ -186,7 +186,7 @@ func (c *Client) syncHistory(startBlock uint64) error {
 	return nil
 }
 
-// syncEventsHistory synchronizes from the zkmultisig contract log events
+// syncEventsHistory synchronizes from the ovote contract log events
 // between the given startBlock and endBlock
 func (c *Client) syncEventsHistory(startBlock, endBlock *big.Int) error {
 	query := ethereum.FilterQuery{
