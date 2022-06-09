@@ -37,7 +37,7 @@ func TestProof(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 
 	proof, err := sqlite.GetProofByProcessID(processID)
-	c.Assert(err.Error(), qt.Equals, "ProcessID: 123, does not exist in the db")
+	c.Assert(err.Error(), qt.Equals, ErrProofNotInDB+", ProcessID: 123")
 	c.Assert(proof, qt.IsNil)
 
 	// expect no error, despite the ProofID is not stored yet
@@ -45,7 +45,7 @@ func TestProof(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 
 	proof, err = sqlite.GetProofByProcessID(processID)
-	c.Assert(err.Error(), qt.Equals, "ProcessID: 123, does not exist in the db")
+	c.Assert(err.Error(), qt.Equals, ErrProofNotInDB+", ProcessID: 123")
 	c.Assert(proof, qt.IsNil)
 
 	err = sqlite.StoreProofID(processID, 42)

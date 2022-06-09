@@ -36,11 +36,6 @@ type errorMsg struct {
 // GenProof sends the given ZKInputs to the prover-server to trigger the
 // zkProof generation
 func (c *Client) GenProof(processID uint64, zki *types.ZKInputs) (uint64, error) {
-	// TODO check if there exists already a proof in db for the processID.
-	// if so, check if time since insertedDatetime is bigger than T (eg. 10
-	// minutes), if so, remove it and continue this function. If not,
-	// return error saying that proof is still not ready
-
 	jsonZKI, err := json.Marshal(zki)
 	if err != nil {
 		return 0, err

@@ -165,8 +165,28 @@ func (va *VotesAggregator) generateZKInputs(processID uint64, nMaxVotes,
 
 // GenerateProof triggers proof generation through the prover client
 func (va *VotesAggregator) GenerateProof(processID uint64) error {
-	// TODO check that process is ready to generate proof (ResPubStartBlock >= currentEthBlock)
-	// if not ready, return error explaining
+	// check that process is ready to generate proof
+	// (ResPubStartBlock >= currentEthBlock) if not ready,
+	// return error explaining
+	process, err := va.db.ReadProcessByID(processID)
+	if err != nil {
+		return err
+	}
+	lastSyncBlockNum, err := va.db.GetLastSyncBlockNum()
+	if err != nil {
+		return err
+	}
+
+	if process.ResPubStartBlock < lastSyncBlockNum {
+		return fmt.Errorf("resPubStartBlock not reached yet."+
+			" ResPubStartBlock: %d, LastSyncBlock: %d",
+			process.ResPubStartBlock, lastSyncBlockNum)
+	}
+
+	// TODO check if there exists already a proof in db for the processID.
+	// if so, check if time since insertedDatetime is bigger than T (eg. 10
+	// minutes), if so, remove it and continue this function. If not,
+	// return error saying that proof is still not ready
 
 	// TODO WIP initially support only for census of 100 voters
 	zki, err := va.generateZKInputs(processID, 128, 7)
@@ -174,7 +194,6 @@ func (va *VotesAggregator) GenerateProof(processID uint64) error {
 		return err
 	}
 
-	// va.prover.GenProof
 	proofID, err := va.prover.GenProof(processID, zki)
 	if err != nil {
 		return err

@@ -9,6 +9,9 @@ import (
 	"github.com/aragon/ovote-node/types"
 )
 
+// ErrProofNotInDB is used to indicate when the proof does not exist in the db.
+var ErrProofNotInDB = "Proof does not exist in db"
+
 // StoreProofID stores the given proofID for the given processID.  This method
 // should be called only from a prover-server response.
 func (r *SQLite) StoreProofID(processID, proofID uint64) error {
@@ -78,7 +81,7 @@ func (r *SQLite) GetProofByProcessID(processID uint64) (*types.ProofInDB, error)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil,
-				fmt.Errorf("ProcessID: %d, does not exist in the db", processID)
+				fmt.Errorf("%s, ProcessID: %d", ErrProofNotInDB, processID)
 		}
 		return nil, err
 	}

@@ -46,6 +46,8 @@ func New(censusBuilder *censusbuilder.CensusBuilder,
 		a.va = votesAggregator
 		r.POST("/process/:processid", a.postVote)
 		r.GET("/process/:processid", a.getProcess)
+		r.POST("/proof/:processid", a.postGenProof)
+		r.GET("/proof/:processid", a.getProof)
 	}
 
 	a.r = r
@@ -218,4 +220,42 @@ func (a *API) getProcess(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, processInfo)
+}
+
+func (a *API) postGenProof(c *gin.Context) {
+	processIDStr := c.Param("processid")
+	processIDInt, err := strconv.Atoi(processIDStr)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+	processID := uint64(processIDInt)
+
+	// trigger proof generation
+	err = a.va.GenerateProof(processID)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, "proof generation started")
+}
+
+func (a *API) getProof(c *gin.Context) {
+	processIDStr := c.Param("processid")
+	processIDInt, err := strconv.Atoi(processIDStr)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+	processID := uint64(processIDInt)
+
+	// return proof if ready, if not return message saying that is not
+	// generated yet
+	proof, err := a.va.GetProof(processID)
+	if err != nil {
+		returnErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, proof)
 }
