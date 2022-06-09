@@ -175,7 +175,7 @@ func (va *VotesAggregator) GenerateProof(processID uint64) error {
 	}
 
 	// va.prover.GenProof
-	proofID, err := va.prover.GenProof(zki)
+	proofID, err := va.prover.GenProof(processID, zki)
 	if err != nil {
 		return err
 	}
@@ -191,15 +191,29 @@ func (va *VotesAggregator) GenerateProof(processID uint64) error {
 // GetProof returns (if has been computed) the proof for the processID
 func (va *VotesAggregator) GetProof(processID uint64) (*types.ProofInDB, error) {
 	// first check if proof is already stored in the db
-	proof, err := va.db.GetProofByProcessID(processID)
+	proofInDB, err := va.db.GetProofByProcessID(processID)
 	if err != nil {
 		return nil, err
 	}
 
 	// if proof does not exist yet in the db, try getting it from the
 	// prover-server
-	if bytes.Equal(proof.Proof, []byte{}) || bytes.Equal(proof.PublicInputs, []byte{}) {
-		return va.prover.GetProof(processID)
+	if bytes.Equal(proofInDB.Proof, []byte{}) ||
+		bytes.Equal(proofInDB.PublicInputs, []byte{}) {
+		proofBytes, publicInputsBytes, err :=
+			va.prover.GetProof(proofInDB.ProofID)
+		if err != nil {
+			return nil, err
+		}
+		proofInDB.Proof = proofBytes
+		proofInDB.PublicInputs = publicInputsBytes
+
+		// store the retreived proofBytes & publicInputsBytes
+		err = va.db.AddProofToProofID(processID, proofInDB.ProofID,
+			proofBytes, publicInputsBytes)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return proof, nil
+	return proofInDB, nil
 }

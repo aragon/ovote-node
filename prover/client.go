@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 
 	"github.com/aragon/zkmultisig-node/types"
 )
@@ -34,7 +35,7 @@ type errorMsg struct {
 
 // GenProof sends the given ZKInputs to the prover-server to trigger the
 // zkProof generation
-func (c *Client) GenProof(zki *types.ZKInputs) (uint64, error) {
+func (c *Client) GenProof(processID uint64, zki *types.ZKInputs) (uint64, error) {
 	// TODO check if there exists already a proof in db for the processID.
 	// if so, check if time since insertedDatetime is bigger than T (eg. 10
 	// minutes), if so, remove it and continue this function. If not,
@@ -44,7 +45,8 @@ func (c *Client) GenProof(zki *types.ZKInputs) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	resp, err := c.c.Post(c.url+"/proof", "application/json", bytes.NewBuffer(jsonZKI))
+	resp, err := c.c.Post(
+		c.url+"/proof", "application/json", bytes.NewBuffer(jsonZKI))
 	if err != nil {
 		return 0, err
 	}
@@ -72,8 +74,63 @@ func (c *Client) GenProof(zki *types.ZKInputs) (uint64, error) {
 	return m["id"], nil
 }
 
-// GetProof retrieves the genereted proof (if already generated) from the
-// prover-server for the given proofID
-func (c *Client) GetProof(proofID uint64) (*types.ProofInDB, error) {
-	return nil, nil
+// GetProof retrieves the genereted proof and publicInputs (if already
+// generated) from the prover-server for the given proofID
+func (c *Client) GetProof(proofID uint64) ([]byte, []byte, error) {
+	// request proof
+	proof, err := c.getProof(proofID)
+	if err != nil {
+		return nil, nil, err
+	}
+	// request publicInputs
+	publicInputs, err := c.getPublicInputs(proofID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return proof, publicInputs, nil
+}
+
+func (c *Client) getProof(proofID uint64) ([]byte, error) {
+	resp, err := c.c.Get(
+		c.url + "/proof/" + strconv.Itoa(int(proofID)))
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusBadRequest {
+		var errMsg errorMsg
+		if err = json.Unmarshal(body, &errMsg); err != nil {
+			return nil, err
+		}
+		return nil, errors.New(errMsg.Message)
+	}
+	return body, nil
+}
+
+func (c *Client) getPublicInputs(proofID uint64) ([]byte, error) {
+	resp, err := c.c.Get(
+		c.url + "/proof/" + strconv.Itoa(int(proofID)) + "/public")
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusBadRequest {
+		var errMsg errorMsg
+		if err = json.Unmarshal(body, &errMsg); err != nil {
+			return nil, err
+		}
+		return nil, errors.New(errMsg.Message)
+	}
+	return body, nil
 }

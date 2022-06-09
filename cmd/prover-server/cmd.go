@@ -44,6 +44,7 @@ func main() {
 	a.r.GET("/status", a.getStatus)
 	a.r.POST("/proof", a.genProof)
 	a.r.GET("/proof/:id", a.getProof)
+	a.r.GET("/proof/:id/public", a.getPublicInputs)
 
 	err = a.r.Run(":" + port)
 	if err != nil {
@@ -113,4 +114,9 @@ func (a *api) genProof(c *gin.Context) {
 func (a *api) getProof(c *gin.Context) {
 	idStr := c.Param("id")
 	c.File("proof" + idStr + ".json")
+}
+
+func (a *api) getPublicInputs(c *gin.Context) {
+	idStr := c.Param("id")
+	c.File("public" + idStr + ".json")
 }
