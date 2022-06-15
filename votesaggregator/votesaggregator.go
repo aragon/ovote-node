@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/aragon/ovote-node/db"
@@ -187,6 +188,21 @@ func (va *VotesAggregator) GenerateProof(processID uint64) error {
 	// if so, check if time since insertedDatetime is bigger than T (eg. 10
 	// minutes), if so, remove it and continue this function. If not,
 	// return error saying that proof is still not ready
+	_, err = va.db.GetProofByProcessID(processID)
+	if err == nil {
+		// proof exists in db
+		// TODO check if time is ok
+
+		// return nil, as proof is already ready
+		return nil
+	}
+	if err != nil {
+		if !strings.Contains(err.Error(), db.ErrProofNotInDB) {
+			return err
+		}
+	}
+
+	// if this line is reached, means that the proof needs to be generated
 
 	// TODO WIP initially support only for census of 100 voters
 	zki, err := va.generateZKInputs(processID, 128, 7)

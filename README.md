@@ -6,6 +6,10 @@ OVOTE: Offchain Voting with Onchain Trustless Execution.
 
 This repo contains the OVOTE node implementation, compatible with the [ovote](https://github.com/aragon/ovote) circuits & contracts. All code is in early stages.
 
+More details on the ovote-node behaviour can be found at the [OVOTE document](https://github.com/aragon/research/blob/main/ovote/ovote-draft.pdf).
+
+![](ovote-node.png)
+
 ## Usage
 In the `cmd/ovote-node` build the binarh: `go build`
 
@@ -33,3 +37,4 @@ So for example, running the node as a CensusBuilder and VotesAggregator for the 
 ## Test
 - Tests: `go test ./...` (need [go](https://go.dev/) installed)
 - Linters: `golangci-lint run --timeout=5m -c .golangci.yml` (need [golangci-lint](https://golangci-lint.run/) installed)
+
